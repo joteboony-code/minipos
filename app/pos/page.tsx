@@ -25,6 +25,27 @@ type SaleSuccess = {
   changeAmount: number | null;
 };
 
+function barcodeSuggestionRank(product: Product, keyword: string) {
+  const text = keyword.toLowerCase();
+  const barcode = product.barcode.toLowerCase();
+  const name = product.name.toLowerCase();
+  if (barcode === text) return 0;
+  if (barcode.startsWith(text)) return 1;
+  if (barcode.includes(text)) return 2;
+  if (name.includes(text)) return 3;
+  return 4;
+}
+
+function sortProductSuggestions(products: Product[], keyword: string) {
+  return [...products]
+    .sort((a, b) => {
+      const rankDiff = barcodeSuggestionRank(a, keyword) - barcodeSuggestionRank(b, keyword);
+      if (rankDiff !== 0) return rankDiff;
+      return a.name.localeCompare(b.name, "th");
+    })
+    .slice(0, 8);
+}
+
 export default function PosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const saleSubmittingRef = useRef(false);
@@ -65,7 +86,9 @@ export default function PosPage() {
   const canCompleteSale = cart.length > 0 && !busy && (paymentMethod === "TRANSFER" || (cashReceived.trim() !== "" && Number.isFinite(cashAmount) && cashAmount >= total));
   const change = Math.max(validCashAmount - total, 0);
   const trimmedQuery = query.trim();
-  const previewExactProduct = previewProducts.find((product) => product.barcode === trimmedQuery) ?? previewProducts[0];
+  const previewExactProduct = previewProducts.find((product) => product.barcode === trimmedQuery);
+  const enterProduct = previewExactProduct ?? (previewProducts.length === 1 ? previewProducts[0] : null);
+  const isNumericSearch = /^\d+$/.test(trimmedQuery);
   const showNoPreviewResult = trimmedQuery !== "" && !previewLoading && previewSearchedQuery === trimmedQuery && previewProducts.length === 0;
 
   useEffect(() => {
@@ -96,13 +119,12 @@ export default function PosPage() {
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      const isBarcode = /^\d+$/.test(keyword);
       setPreviewLoading(true);
-      fetch(`/api/products?${isBarcode ? "barcode" : "search"}=${encodeURIComponent(keyword)}`, { signal: controller.signal })
+      fetch(`/api/products?search=${encodeURIComponent(keyword)}`, { signal: controller.signal })
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {
-            setPreviewProducts((data as Product[]).slice(0, 5));
+            setPreviewProducts(sortProductSuggestions(data as Product[], keyword));
           } else {
             setPreviewProducts([]);
           }
@@ -162,8 +184,8 @@ export default function PosPage() {
     event.preventDefault();
     const keyword = query.trim();
     if (!keyword) return;
-    if (previewExactProduct && previewSearchedQuery === keyword) {
-      addPreviewProduct(previewExactProduct);
+    if (enterProduct && previewSearchedQuery === keyword) {
+      addPreviewProduct(enterProduct);
       return;
     }
     const isBarcode = /^\d+$/.test(keyword);
@@ -175,10 +197,17 @@ export default function PosPage() {
       return;
     }
     const products = data as Product[];
-    if (products.length === 0) {
+    const sortedProducts = sortProductSuggestions(products, keyword);
+    const exactProduct = sortedProducts.find((product) => product.barcode === keyword);
+    const productToAdd = exactProduct ?? (sortedProducts.length === 1 ? sortedProducts[0] : null);
+    if (sortedProducts.length === 0) {
       setMessage("ไม่พบสินค้า");
+    } else if (!productToAdd) {
+      setPreviewProducts(sortedProducts);
+      setPreviewSearchedQuery(keyword);
+      setMessage(isBarcode ? "เลือกสินค้าใกล้เคียงก่อนเพิ่ม" : "เลือกสินค้าที่ต้องการก่อนเพิ่ม");
     } else {
-      addProduct(products[0]);
+      addProduct(productToAdd);
       setQuery("");
       setPreviewProducts([]);
       setPreviewSearchedQuery("");
@@ -316,14 +345,13 @@ export default function PosPage() {
     }
 
     if (showNoPreviewResult) {
-      return <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-black text-amber-800">ไม่พบสินค้า</div>;
+      return <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-black text-amber-800">{isNumericSearch ? "ไม่พบสินค้าใกล้เคียง" : "ไม่พบสินค้า"}</div>;
     }
 
     if (previewProducts.length === 0) return null;
 
-    const isExactBarcode = previewProducts.length === 1 && previewProducts[0].barcode === trimmedQuery;
-    if (isExactBarcode) {
-      const product = previewProducts[0];
+    if (previewExactProduct) {
+      const product = previewExactProduct;
       const status = productStatus(product);
       return (
         <button
@@ -344,9 +372,9 @@ export default function PosPage() {
 
     return (
       <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-sm font-black text-slate-600">สินค้าที่พบ</div>
-        <div className="divide-y divide-slate-100">
-          {previewProducts.map((product) => {
+        <div className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-sm font-black text-slate-600">{isNumericSearch ? "สินค้าใกล้เคียง" : "สินค้าที่พบ"}</div>
+        <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
+          {previewProducts.slice(0, 8).map((product) => {
             const status = productStatus(product);
             return (
               <button

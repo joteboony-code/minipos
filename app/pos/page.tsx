@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Search, Trash2 } from "lucide-react";
+import { LoaderCircle, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { baht } from "@/lib/format";
 
 type Product = {
@@ -278,10 +278,10 @@ export default function PosPage() {
       <div className="card p-3">
         <div className="text-xl font-black">รับชำระเงิน</div>
         <div className="mt-2 grid grid-cols-2 gap-2">
-          <button className={`btn min-h-12 text-lg ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("CASH")} type="button">
+          <button className={`btn min-h-12 text-lg ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CASH")} type="button">
             เงินสด
           </button>
-          <button className={`btn min-h-12 text-lg ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("TRANSFER")} type="button">
+          <button className={`btn min-h-12 text-lg ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("TRANSFER")} type="button">
             รับโอน
           </button>
         </div>
@@ -297,6 +297,7 @@ export default function PosPage() {
               value={cashReceived}
               onChange={(event) => setCashReceived(event.target.value)}
               onKeyDown={handleCashKeyDown}
+              disabled={busy}
               type="number"
               min="0"
               step="0.01"
@@ -329,6 +330,7 @@ export default function PosPage() {
             setCart([]);
             setMessage("");
           }}
+          disabled={busy}
           type="button"
         >
           ยกเลิกตะกร้า
@@ -357,6 +359,7 @@ export default function PosPage() {
         <button
           className="mt-2 w-full rounded-lg border-2 border-teal-200 bg-teal-50 px-3 py-2 text-left transition hover:border-teal-500"
           onClick={() => addPreviewProduct(product)}
+          disabled={busy}
           type="button"
         >
           <div className="text-sm font-black text-teal-800">สินค้าที่พบ</div>
@@ -381,6 +384,7 @@ export default function PosPage() {
                 key={product.id}
                 className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2 text-left hover:bg-teal-50"
                 onClick={() => addPreviewProduct(product)}
+                disabled={busy}
                 type="button"
               >
                 <div className="min-w-0">
@@ -416,9 +420,10 @@ export default function PosPage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
+                disabled={busy}
               />
             </div>
-            <button className="btn btn-primary min-h-14 min-w-32 text-xl" type="submit">
+            <button className="btn btn-primary min-h-14 min-w-32 text-xl" disabled={busy} type="submit">
               เพิ่ม
             </button>
           </div>
@@ -445,15 +450,16 @@ export default function PosPage() {
                     <div className="flex flex-col items-end gap-1">
                       <div className="text-base font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
                       <div className="flex gap-1">
-                        <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
+                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
                           <Minus size={16} />
                         </button>
                         <div className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-slate-100 px-2 text-sm font-black">{item.quantity}</div>
-                        <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
+                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
                           <Plus size={16} />
                         </button>
                         <button
                           className="btn btn-danger touch-icon-button"
+                          disabled={busy}
                           onClick={() => setCart((items) => items.filter((entry) => entry.id !== item.id))}
                           type="button"
                           title="ลบสินค้า"
@@ -482,7 +488,7 @@ export default function PosPage() {
                         ? "border-slate-200 bg-slate-100 text-slate-400 opacity-60"
                         : "border-teal-200 bg-white text-slate-950 hover:border-teal-500 hover:bg-teal-50"
                     }`}
-                    disabled={isOut}
+                    disabled={isOut || busy}
                     onClick={() => addProduct(product)}
                     type="button"
                   >
@@ -506,6 +512,15 @@ export default function PosPage() {
       <aside className="hidden xl:sticky xl:top-3 xl:block xl:self-start">
         {renderPaymentPanel()}
       </aside>
+      {busy && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="card w-full max-w-sm p-6 text-center shadow-2xl">
+            <LoaderCircle className="mx-auto animate-spin text-teal-700" size={56} strokeWidth={2.6} />
+            <div className="mt-4 text-2xl font-black text-slate-950">กำลังบันทึกการขาย...</div>
+            <div className="mt-2 font-bold text-slate-600">กรุณารอสักครู่ ห้ามปิดหน้านี้</div>
+          </div>
+        </div>
+      )}
       {successSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="card w-full max-w-lg p-6">

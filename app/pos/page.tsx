@@ -27,6 +27,7 @@ type SaleSuccess = {
 
 export default function PosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const saleSubmittingRef = useRef(false);
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quickSaleProducts, setQuickSaleProducts] = useState<Product[]>([]);
@@ -198,10 +199,12 @@ export default function PosPage() {
   }
 
   async function completeSale() {
+    if (saleSubmittingRef.current) return;
     if (cart.length === 0) return setMessage("ไม่มีสินค้าในตะกร้า");
     if (paymentMethod === "CASH" && cashReceived.trim() === "") return setMessage("กรุณาระบุเงินสดที่รับมา");
     if (paymentMethod === "CASH" && !Number.isFinite(cashAmount)) return setMessage("จำนวนเงินสดไม่ถูกต้อง");
-    if (paymentMethod === "CASH" && cashAmount < total) return setMessage("เงินสดที่รับมาน้อยกว่ายอดรวม");
+    if (paymentMethod === "CASH" && cashAmount < total) return setMessage("เงินรับน้อยกว่ายอดรวม");
+    saleSubmittingRef.current = true;
     setBusy(true);
     try {
       const res = await fetch("/api/sales", {
@@ -229,9 +232,16 @@ export default function PosPage() {
     } catch {
       setMessage("เชื่อมต่อระบบขายไม่สำเร็จ");
     } finally {
+      saleSubmittingRef.current = false;
       setBusy(false);
       inputRef.current?.focus();
     }
+  }
+
+  function handleCashKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    completeSale();
   }
 
   function renderPaymentPanel() {
@@ -253,7 +263,15 @@ export default function PosPage() {
         {paymentMethod === "CASH" && (
           <div className="mt-2 space-y-1.5">
             <label className="font-black">รับเงิน</label>
-            <input className="field min-h-12 text-xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
+            <input
+              className="field min-h-12 text-xl"
+              value={cashReceived}
+              onChange={(event) => setCashReceived(event.target.value)}
+              onKeyDown={handleCashKeyDown}
+              type="number"
+              min="0"
+              step="0.01"
+            />
             {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
             <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-3">
               <div className="font-black text-emerald-800">เงินทอน</div>
@@ -274,7 +292,7 @@ export default function PosPage() {
           </div>
         )}
         <button className="btn btn-primary mt-3 w-full py-3 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
-          บันทึกการขาย
+          {busy ? "กำลังบันทึก..." : "บันทึกการขาย"}
         </button>
         <button
           className="btn btn-light mt-2 w-full py-2 text-base"

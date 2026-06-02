@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 import { parseProductInput, serializeProduct } from "@/lib/product";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
+  const session = await getSession();
+  const includeCost = session?.role === "OWNER";
   const search = request.nextUrl.searchParams.get("search")?.trim();
   const barcode = request.nextUrl.searchParams.get("barcode")?.trim();
   const categoryId = request.nextUrl.searchParams.get("categoryId")?.trim();
@@ -27,7 +30,7 @@ export async function GET(request: NextRequest) {
     take: barcode ? 1 : 100
   });
 
-  return NextResponse.json(products.map(serializeProduct));
+  return NextResponse.json(products.map((product) => serializeProduct(product, { includeCost })));
 }
 
 export async function POST(request: NextRequest) {

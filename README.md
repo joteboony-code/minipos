@@ -1,94 +1,146 @@
 # MiniMart POS
 
-ระบบขายหน้าร้าน MVP สำหรับร้านมินิมาร์ทหรือร้านสะดวกซื้อขนาดเล็ก รองรับการขายด้วยบาร์โค้ด ตะกร้าสินค้า รับเงินสด/รับโอน ตัดสต๊อก บันทึก stock movement ประวัติการขาย และรายงานวันนี้
+ระบบขายหน้าร้าน MVP สำหรับร้านมินิมาร์ทขนาดเล็ก รองรับภาษาไทย สกุลเงินบาท Neon PostgreSQL และ Prisma
+
+## ความสามารถหลัก
+
+- ขายสินค้าด้วยบาร์โค้ดและปุ่มขายด่วน
+- รับเงินสด/รับโอน พร้อมคำนวณเงินทอนและ QR พร้อมเพย์
+- ตัดสต๊อกและบันทึก StockMovement ใน transaction
+- ประวัติการขาย ใบเสร็จ และพิมพ์ผ่าน browser print
+- ส่งออก CSV จากประวัติการขาย
+- จัดการสินค้า หมวดหมู่ และสต๊อก
+- Dashboard รายงานวันนี้
+- Login ด้วย PIN แบบ OWNER/STAFF
+- หน้า Reports และ Backup สำหรับ OWNER
 
 ## Tech Stack
 
 - Next.js App Router
 - TypeScript
 - Tailwind CSS
-- Neon PostgreSQL
 - Prisma ORM
-- PWA-ready manifest
-- UI ภาษาไทย และสกุลเงินบาท
+- Neon PostgreSQL
+- Vercel
 
-## การติดตั้ง
+## Environment Variables
 
-1. ติดตั้ง dependencies
-
-```bash
-npm install
-```
-
-2. สร้างไฟล์ `.env` จาก `.env.example`
-
-```bash
-cp .env.example .env
-```
-
-บน Windows PowerShell ใช้คำสั่งนี้ได้เช่นกัน:
+สร้างไฟล์ `.env` จาก `.env.example`
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-3. สร้างฐานข้อมูล Neon PostgreSQL แล้วคัดลอก connection string มาใส่ใน `.env`
+ตั้งค่าตัวแปรเหล่านี้:
 
 ```env
 DATABASE_URL="postgresql://neondb_owner:YOUR_PASSWORD@ep-your-project-id.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&schema=public"
 PROMPTPAY_ID=""
+OWNER_PIN=""
+STAFF_PIN=""
+AUTH_SECRET=""
 ```
 
-ให้ใช้ connection string ของ Neon project จริงแทนค่าตัวอย่างด้านบน โดยคง `sslmode=require` ไว้ และไม่ต้องเพิ่ม `DIRECT_URL` สำหรับ MVP นี้
-ถ้าต้องการแสดง QR พร้อมเพย์บนหน้าโอนเงิน ให้ใส่เลขพร้อมเพย์ของร้านใน `PROMPTPAY_ID` เช่น เบอร์มือถือหรือเลขประจำตัวผู้เสียภาษีของร้าน
+- `DATABASE_URL`: connection string จาก Neon PostgreSQL
+- `PROMPTPAY_ID`: เลขพร้อมเพย์ของร้าน เว้นว่างได้
+- `OWNER_PIN`: PIN สำหรับเจ้าของร้าน
+- `STAFF_PIN`: PIN สำหรับพนักงานขาย
+- `AUTH_SECRET`: ค่าลับสำหรับ sign cookie ควรเป็นข้อความสุ่มยาว ๆ และห้าม commit
 
-4. สร้างตารางด้วย Prisma migration
+อย่าใส่ค่า secret จริงใน `.env.example` และอย่า commit ไฟล์ `.env`
+
+## วิธีรันในเครื่อง
 
 ```bash
+npm install
 npx prisma migrate dev
-```
-
-5. เพิ่มข้อมูลตัวอย่าง
-
-```bash
 npm run prisma:seed
-```
-
-6. รันระบบ
-
-```bash
 npm run dev
 ```
 
 เปิดใช้งานที่ [http://localhost:3000](http://localhost:3000)
 
-## หน้าหลัก
+## วิธีตั้งค่า Neon
 
-- `/` รายงานวันนี้: ยอดขายวันนี้ จำนวนบิลวันนี้ กำไรขั้นต้นวันนี้ จำนวนสินค้าใกล้หมด และรายการขายล่าสุด
-- `/pos` ขายสินค้า: สแกนบาร์โค้ด/ค้นหาชื่อสินค้า เพิ่มลงตะกร้า รับเงินสดหรือรับโอน และบันทึกการขาย
-- `/products` สินค้า: เพิ่ม แก้ไข ค้นหา กรองหมวดหมู่ ปิดใช้งาน และไฮไลต์สินค้าใกล้หมด
-- `/categories` หมวดหมู่: เพิ่ม แก้ไข และลบหมวดหมู่เมื่อไม่มีสินค้าใช้งาน
-- `/stock` สต๊อก: รับสินค้าเข้า ปรับยอด และดูประวัติ stock movement
-- `/sales` ประวัติการขาย: ดูบิล ยอดรวม วิธีชำระเงิน กำไร และรายละเอียดสินค้าในบิล
+1. เข้า [neon.tech](https://neon.tech)
+2. สร้าง Project ใหม่
+3. เลือก region ที่ใกล้ผู้ใช้ เช่น Singapore ถ้ามีให้เลือก
+4. เปิดหน้า Connection details
+5. คัดลอก PostgreSQL connection string
+6. วางใน `.env` หรือ Vercel Environment Variables ที่ `DATABASE_URL`
+7. คง `sslmode=require` ไว้
 
-## ข้อมูลตัวอย่าง
+## วิธีตั้งค่า Vercel
 
-Seed data มีสินค้าทดสอบ เช่น โค้ก 500ml, น้ำเปล่า 600ml, เลย์, มาม่า, นมกล่อง และกาแฟกระป๋อง พร้อมบาร์โค้ดตัวอย่าง `8850001000011` ถึง `8850001000066`
+ใน Vercel Project Settings > Environment Variables ให้เพิ่ม:
+
+- `DATABASE_URL`
+- `PROMPTPAY_ID`
+- `OWNER_PIN`
+- `STAFF_PIN`
+- `AUTH_SECRET`
+
+หลังเพิ่มหรือแก้ env ให้ redeploy โปรเจกต์
+
+## Login และสิทธิ์ผู้ใช้
+
+หน้า `/login` ใช้ PIN จาก env เท่านั้น ไม่มีตารางผู้ใช้ในฐานข้อมูล
+
+OWNER เข้าถึงได้ทุกหน้า:
+
+- Dashboard
+- POS
+- Products
+- Categories
+- Stock
+- Sales
+- Reports
+- Backup
+
+STAFF เข้าถึงได้เฉพาะ:
+
+- POS
+- Sales history/detail สำหรับดูบิลหรือพิมพ์ซ้ำ
+- PromptPay QR
+- Logout
+
+STAFF ไม่สามารถเข้าหน้าจัดการสินค้า หมวดหมู่ สต๊อก Dashboard รายงานกำไร หรือ Backup ได้ และ API owner-only จะตอบกลับว่า `ไม่มีสิทธิ์เข้าถึงหน้านี้`
+
+## Backup / Export
+
+หน้า `/backup` สำหรับ OWNER เท่านั้น
+
+- `ส่งออกข้อมูลทั้งหมด`: JSON รวม categories, products, sales, saleItems, stockMovements
+- `ส่งออกสินค้า`: CSV รายการสินค้า
+- `ส่งออกยอดขาย`: CSV ยอดขาย ต้นทุน กำไร และวิธีชำระเงิน
+- `ส่งออกสต๊อก`: CSV StockMovement
+
+ระบบนี้เป็น export-only ยังไม่มี restore จึงไม่กระทบฐานข้อมูล
+
+## Reports
+
+หน้า `/reports` สำหรับ OWNER เท่านั้น แสดง:
+
+- รายงานวันนี้
+- รายงานรายเดือน
+- สินค้าขายดี
+- กำไรขั้นต้น
+- ยอดขายแยกตามวิธีชำระเงิน
+- สินค้าใกล้หมด
+- สินค้าหมด
+
+การคำนวณวัน/เดือนใช้ขอบเขตเวลา Asia/Bangkok
+
+## คำสั่งตรวจคุณภาพ
+
+```bash
+npx prisma validate
+npm run lint
+npm run build
+```
 
 ## หมายเหตุ
 
-- MVP นี้ยังไม่รวมโปรโมชั่น สมาชิก บัญชี เดลิเวอรี หลายสาขา e-commerce หรือระบบ login จริง
-- ห้าม commit `.env` หรือ secret ใด ๆ
-- เลขที่ใบเสร็จสร้างในรูปแบบ `POS-YYYYMMDD-0001`
-- Sale completion ใช้ database transaction และมี database check constraints เพื่อกันข้อมูลผิด เช่น stock ติดลบหรือ quantity ไม่ถูกต้อง
-- `PROMPTPAY_ID` เป็นค่า optional ถ้าไม่ตั้งค่า ระบบจะแสดงข้อความ “ยังไม่ได้ตั้งค่าเลขพร้อมเพย์” แทน QR
-
-## วิธีสร้าง Neon Database
-
-1. สมัครหรือเข้าสู่ระบบ Neon ที่ [neon.tech](https://neon.tech)
-2. สร้าง Project ใหม่
-3. เลือก region ใกล้ผู้ใช้งาน เช่น Singapore หรือ region ที่ Neon แนะนำ
-4. เปิดหน้า Connection details ของ project
-5. คัดลอก PostgreSQL connection string
-6. วาง connection string ลงในไฟล์ `.env` ที่ตัวแปร `DATABASE_URL`
-7. รัน migration และ seed data ด้วยคำสั่งในหัวข้อการติดตั้ง
+- ห้าม run destructive database reset บนฐานข้อมูล production
+- ถ้าจะ deploy migration บน Neon/Vercel ให้ใช้ `npx prisma migrate deploy`
+- ระบบยังไม่รวม promotion, loyalty, staff database, accounting, multi-branch หรือ e-commerce

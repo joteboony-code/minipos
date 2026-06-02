@@ -25,10 +25,10 @@ function stringField(body: Record<string, unknown>, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function serializeProduct(product: ProductForJson) {
+export function serializeProduct(product: ProductForJson, options: { includeCost?: boolean } = { includeCost: true }) {
   return {
     ...product,
-    costPrice: Number(product.costPrice),
+    costPrice: options.includeCost ? Number(product.costPrice) : null,
     salePrice: Number(product.salePrice)
   };
 }

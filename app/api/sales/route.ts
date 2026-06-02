@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type CheckoutItem = { productId: string; quantity: number };
@@ -166,6 +167,8 @@ async function createSale(body: unknown) {
 }
 
 export async function GET() {
+  const session = await getSession();
+  const canSeeProfit = session?.role === "OWNER";
   const sales = await prisma.sale.findMany({
     include: { items: true },
     orderBy: { createdAt: "desc" },
@@ -176,17 +179,17 @@ export async function GET() {
     sales.map((sale) => ({
       ...sale,
       totalAmount: Number(sale.totalAmount),
-      totalCost: Number(sale.totalCost),
-      grossProfit: Number(sale.grossProfit),
+      totalCost: canSeeProfit ? Number(sale.totalCost) : null,
+      grossProfit: canSeeProfit ? Number(sale.grossProfit) : null,
       cashReceived: sale.cashReceived === null ? null : Number(sale.cashReceived),
       changeAmount: sale.changeAmount === null ? null : Number(sale.changeAmount),
       itemCount: sale.items.reduce((sum, item) => sum + item.quantity, 0),
       items: sale.items.map((item) => ({
         ...item,
         unitPrice: Number(item.unitPrice),
-        costPrice: Number(item.costPrice),
+        costPrice: canSeeProfit ? Number(item.costPrice) : null,
         lineTotal: Number(item.lineTotal),
-        lineProfit: Number(item.lineProfit)
+        lineProfit: canSeeProfit ? Number(item.lineProfit) : null
       }))
     }))
   );
@@ -194,6 +197,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    const canSeeProfit = session?.role === "OWNER";
     const body = await request.json();
     let sale = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -213,8 +218,8 @@ export async function POST(request: NextRequest) {
       {
         ...sale,
         totalAmount: Number(sale.totalAmount),
-        totalCost: Number(sale.totalCost),
-        grossProfit: Number(sale.grossProfit),
+        totalCost: canSeeProfit ? Number(sale.totalCost) : null,
+        grossProfit: canSeeProfit ? Number(sale.grossProfit) : null,
         cashReceived: sale.cashReceived === null ? null : Number(sale.cashReceived),
         changeAmount: sale.changeAmount === null ? null : Number(sale.changeAmount)
       },

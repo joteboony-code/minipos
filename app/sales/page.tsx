@@ -10,15 +10,15 @@ type SaleItem = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
-  lineProfit: number;
+  lineProfit: number | null;
 };
 
 type Sale = {
   id: string;
   receiptNo: string;
   totalAmount: number;
-  totalCost: number;
-  grossProfit: number;
+  totalCost: number | null;
+  grossProfit: number | null;
   paymentMethod: "CASH" | "TRANSFER";
   cashReceived: number | null;
   changeAmount: number | null;
@@ -39,8 +39,10 @@ function paymentLabel(paymentMethod: Sale["paymentMethod"]) {
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [role, setRole] = useState<"OWNER" | "STAFF" | null>(null);
 
   useEffect(() => {
+    fetch("/api/auth/me").then((res) => res.ok ? res.json() : null).then((data) => setRole(data?.role ?? null));
     fetch("/api/sales").then((res) => res.json()).then(setSales);
   }, []);
 
@@ -50,8 +52,8 @@ export default function SalesPage() {
       sale.receiptNo,
       thDate(sale.createdAt),
       sale.totalAmount.toFixed(2),
-      sale.totalCost.toFixed(2),
-      sale.grossProfit.toFixed(2),
+      (sale.totalCost ?? 0).toFixed(2),
+      (sale.grossProfit ?? 0).toFixed(2),
       paymentLabel(sale.paymentMethod),
       sale.cashReceived === null ? "" : sale.cashReceived.toFixed(2),
       sale.changeAmount === null ? "" : sale.changeAmount.toFixed(2),
@@ -79,12 +81,12 @@ export default function SalesPage() {
           <h1 className="text-2xl font-black">ประวัติการขาย</h1>
           <p className="text-slate-500">ดูรายการขาย รายละเอียดใบเสร็จ และส่งออกรายงาน</p>
         </div>
-        <button className="btn btn-primary" onClick={exportCsv} type="button">ส่งออก CSV</button>
+        {role === "OWNER" && <button className="btn btn-primary" onClick={exportCsv} type="button">ส่งออก CSV</button>}
       </div>
       <div className="card screen-only overflow-x-auto">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
-            <tr><th className="px-4 py-3">เลขที่ใบเสร็จ</th><th className="px-4 py-3">วันเวลา</th><th className="px-4 py-3">ชำระเงิน</th><th className="px-4 py-3 text-center">จำนวนสินค้า</th><th className="px-4 py-3 text-right">ยอดรวม</th><th className="px-4 py-3 text-right">กำไร</th><th className="px-4 py-3 text-right">รายละเอียด</th></tr>
+            <tr><th className="px-4 py-3">เลขที่ใบเสร็จ</th><th className="px-4 py-3">วันเวลา</th><th className="px-4 py-3">ชำระเงิน</th><th className="px-4 py-3 text-center">จำนวนสินค้า</th><th className="px-4 py-3 text-right">ยอดรวม</th>{role === "OWNER" && <th className="px-4 py-3 text-right">กำไร</th>}<th className="px-4 py-3 text-right">รายละเอียด</th></tr>
           </thead>
           <tbody>
             {sales.map((sale) => (
@@ -95,12 +97,12 @@ export default function SalesPage() {
                   <td className="px-4 py-3">{paymentLabel(sale.paymentMethod)}</td>
                   <td className="px-4 py-3 text-center">{sale.itemCount}</td>
                   <td className="px-4 py-3 text-right font-bold">{baht(sale.totalAmount)}</td>
-                  <td className="px-4 py-3 text-right text-emerald-700">{baht(sale.grossProfit)}</td>
+                  {role === "OWNER" && <td className="px-4 py-3 text-right text-emerald-700">{baht(sale.grossProfit ?? 0)}</td>}
                   <td className="px-4 py-3 text-right"><button className="btn btn-light" onClick={() => setOpenId(openId === sale.id ? null : sale.id)} type="button">ดูบิล</button></td>
                 </tr>
                 {openId === sale.id && (
                   <tr className="bg-slate-50">
-                    <td className="px-4 py-4" colSpan={7}>
+                    <td className="px-4 py-4" colSpan={role === "OWNER" ? 7 : 6}>
                       <ReceiptDetail sale={sale} onPrint={() => printReceipt(sale.id)} />
                     </td>
                   </tr>

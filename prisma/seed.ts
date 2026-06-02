@@ -5,12 +5,12 @@ const prisma = new PrismaClient();
 const categories = ["เครื่องดื่ม", "ขนม", "บะหมี่กึ่งสำเร็จรูป", "ของใช้ประจำวัน"];
 
 const products = [
-  { barcode: "8850001000011", name: "โค้ก 500ml", category: "เครื่องดื่ม", costPrice: 14, salePrice: 20, stockQty: 24, unit: "ขวด" },
-  { barcode: "8850001000028", name: "น้ำเปล่า 600ml", category: "เครื่องดื่ม", costPrice: 5, salePrice: 10, stockQty: 48, unit: "ขวด" },
-  { barcode: "8850001000035", name: "เลย์", category: "ขนม", costPrice: 13, salePrice: 20, stockQty: 18, unit: "ซอง" },
-  { barcode: "8850001000042", name: "มาม่า", category: "บะหมี่กึ่งสำเร็จรูป", costPrice: 5.5, salePrice: 8, stockQty: 36, unit: "ซอง" },
-  { barcode: "8850001000059", name: "นมกล่อง", category: "เครื่องดื่ม", costPrice: 9, salePrice: 14, stockQty: 20, unit: "กล่อง" },
-  { barcode: "8850001000066", name: "กาแฟกระป๋อง", category: "เครื่องดื่ม", costPrice: 11, salePrice: 18, stockQty: 16, unit: "กระป๋อง" }
+  { barcode: "8850001000011", name: "โค้ก 500ml", category: "เครื่องดื่ม", costPrice: 14, salePrice: 20, stockQty: 24, unit: "ขวด", isQuickSale: true },
+  { barcode: "8850001000028", name: "น้ำเปล่า 600ml", category: "เครื่องดื่ม", costPrice: 5, salePrice: 10, stockQty: 48, unit: "ขวด", isQuickSale: true },
+  { barcode: "8850001000035", name: "เลย์ รสโนริ", category: "ขนม", costPrice: 13, salePrice: 20, stockQty: 18, unit: "ซอง", isQuickSale: true },
+  { barcode: "8850001000042", name: "มาม่า", category: "บะหมี่กึ่งสำเร็จรูป", costPrice: 5.5, salePrice: 8, stockQty: 36, unit: "ซอง", isQuickSale: true },
+  { barcode: "8850001000059", name: "นมกล่อง", category: "เครื่องดื่ม", costPrice: 9, salePrice: 14, stockQty: 20, unit: "กล่อง", isQuickSale: false },
+  { barcode: "8850001000066", name: "กาแฟกระป๋อง", category: "เครื่องดื่ม", costPrice: 11, salePrice: 18, stockQty: 16, unit: "กระป๋อง", isQuickSale: false }
 ];
 
 async function main() {
@@ -34,7 +34,8 @@ async function main() {
         stockQty: item.stockQty,
         unit: item.unit,
         lowStockAlertQty: 5,
-        isActive: true
+        isActive: true,
+        isQuickSale: item.isQuickSale
       },
       create: {
         barcode: item.barcode,
@@ -44,7 +45,8 @@ async function main() {
         salePrice: item.salePrice,
         stockQty: item.stockQty,
         unit: item.unit,
-        lowStockAlertQty: 5
+        lowStockAlertQty: 5,
+        isQuickSale: item.isQuickSale
       }
     });
   }

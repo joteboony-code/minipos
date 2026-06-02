@@ -1,0 +1,1 @@
+ALTER TABLE "Product" ADD COLUMN "isQuickSale" BOOLEAN NOT NULL DEFAULT false;

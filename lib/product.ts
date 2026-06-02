@@ -8,6 +8,7 @@ export type ProductInput = {
   unit: string;
   lowStockAlertQty: number;
   isActive: boolean;
+  isQuickSale: boolean;
 };
 
 type ProductForJson = Record<string, unknown> & {
@@ -60,6 +61,7 @@ export function parseProductInput(input: unknown): ProductInput {
     stockQty,
     unit,
     lowStockAlertQty,
-    isActive: Boolean(body.isActive ?? true)
+    isActive: Boolean(body.isActive ?? true),
+    isQuickSale: Boolean(body.isQuickSale ?? false)
   };
 }

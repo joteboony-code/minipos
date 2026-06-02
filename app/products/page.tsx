@@ -17,6 +17,7 @@ type Product = {
   unit: string;
   lowStockAlertQty: number;
   isActive: boolean;
+  isQuickSale: boolean;
 };
 
 const empty = {
@@ -28,7 +29,8 @@ const empty = {
   stockQty: "0",
   unit: "ชิ้น",
   lowStockAlertQty: "5",
-  isActive: true
+  isActive: true,
+  isQuickSale: false
 };
 
 export default function ProductsPage() {
@@ -88,7 +90,8 @@ export default function ProductsPage() {
       stockQty: String(product.stockQty),
       unit: product.unit,
       lowStockAlertQty: String(product.lowStockAlertQty),
-      isActive: product.isActive
+      isActive: product.isActive,
+      isQuickSale: product.isQuickSale
     });
   }
 
@@ -124,7 +127,11 @@ export default function ProductsPage() {
           <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
           เปิดใช้งาน
         </label>
-        <button className="btn btn-primary md:col-span-3" type="submit"><Save size={18} />{editingId ? "บันทึกการแก้ไข" : "เพิ่มสินค้า"}</button>
+        <label className="flex items-center gap-2 font-bold">
+          <input type="checkbox" checked={form.isQuickSale} onChange={(e) => setForm({ ...form, isQuickSale: e.target.checked })} />
+          ปุ่มขายด่วน
+        </label>
+        <button className="btn btn-primary md:col-span-2" type="submit"><Save size={18} />{editingId ? "บันทึกการแก้ไข" : "เพิ่มสินค้า"}</button>
       </form>
       <div className="card flex flex-col gap-3 p-3 md:flex-row">
         <div className="relative flex-1">
@@ -141,7 +148,7 @@ export default function ProductsPage() {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr>
-              <th className="px-4 py-3">สินค้า</th><th className="px-4 py-3">หมวดหมู่</th><th className="px-4 py-3 text-right">ทุน</th><th className="px-4 py-3 text-right">ขาย</th><th className="px-4 py-3 text-center">สต็อก</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3 text-right">จัดการ</th>
+              <th className="px-4 py-3">สินค้า</th><th className="px-4 py-3">หมวดหมู่</th><th className="px-4 py-3 text-right">ทุน</th><th className="px-4 py-3 text-right">ขาย</th><th className="px-4 py-3 text-center">สต็อก</th><th className="px-4 py-3">ขายด่วน</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3 text-right">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -152,6 +159,7 @@ export default function ProductsPage() {
                 <td className="px-4 py-3 text-right">{baht(product.costPrice)}</td>
                 <td className="px-4 py-3 text-right font-bold">{baht(product.salePrice)}</td>
                 <td className="px-4 py-3 text-center font-black">{product.stockQty} {product.unit}</td>
+                <td className="px-4 py-3">{product.isQuickSale ? "ใช้" : "-"}</td>
                 <td className="px-4 py-3">{product.isActive ? "ใช้งาน" : "ปิดใช้งาน"}</td>
                 <td className="px-4 py-3 text-right">
                   <button className="btn btn-light mr-2" onClick={() => edit(product)} type="button">แก้ไข</button>

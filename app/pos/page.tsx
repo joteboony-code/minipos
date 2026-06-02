@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus, Search, Trash2 } from "lucide-react";
 import { baht } from "@/lib/format";
 
@@ -21,6 +21,7 @@ export default function PosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [quickSaleProducts, setQuickSaleProducts] = useState<Product[]>([]);
   const [message, setMessage] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER">("CASH");
   const [cashReceived, setCashReceived] = useState("");
@@ -29,6 +30,19 @@ export default function PosPage() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  const loadQuickSaleProducts = useCallback(() => {
+    fetch("/api/products?quickSale=true")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setQuickSaleProducts(data);
+      })
+      .catch(() => setMessage("โหลดปุ่มขายด่วนไม่สำเร็จ"));
+  }, []);
+
+  useEffect(() => {
+    loadQuickSaleProducts();
+  }, [loadQuickSaleProducts]);
 
   const total = useMemo(() => cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0), [cart]);
   const cashAmount = Number(cashReceived || 0);
@@ -106,6 +120,7 @@ export default function PosPage() {
       setCart([]);
       setCashReceived("");
       setMessage(`บันทึกการขายสำเร็จ ${data.receiptNo}`);
+      loadQuickSaleProducts();
     } catch {
       setMessage("เชื่อมต่อระบบขายไม่สำเร็จ");
     } finally {
@@ -136,6 +151,35 @@ export default function PosPage() {
             เพิ่ม
           </button>
         </form>
+        <div className="card overflow-hidden">
+          <div className="border-b border-slate-200 px-5 py-4 text-2xl font-black">ปุ่มขายด่วน</div>
+          {quickSaleProducts.length > 0 ? (
+            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+              {quickSaleProducts.map((product) => {
+                const isOut = product.stockQty <= 0;
+                return (
+                  <button
+                    key={product.id}
+                    className={`min-h-28 rounded-lg border-2 p-4 text-left font-black transition ${
+                      isOut
+                        ? "border-slate-200 bg-slate-100 text-slate-400"
+                        : "border-teal-200 bg-teal-50 text-slate-900 hover:border-teal-500 hover:bg-teal-100"
+                    }`}
+                    disabled={isOut}
+                    onClick={() => addProduct(product)}
+                    type="button"
+                  >
+                    <div className="text-xl">{product.name}</div>
+                    <div className="mt-2 text-2xl text-teal-700">{baht(product.salePrice)}</div>
+                    <div className="mt-1 text-base text-slate-600">{isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}</div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-5 py-8 text-center text-lg font-bold text-slate-500">ยังไม่มีสินค้าปุ่มขายด่วน</div>
+          )}
+        </div>
         {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-5 py-4 text-xl font-black text-amber-900">{message}</div>}
         <div className="card overflow-hidden">
           <div className="border-b border-slate-200 px-5 py-4 text-2xl font-black">ตะกร้าสินค้า</div>

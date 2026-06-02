@@ -6,11 +6,13 @@ export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.get("search")?.trim();
   const barcode = request.nextUrl.searchParams.get("barcode")?.trim();
   const categoryId = request.nextUrl.searchParams.get("categoryId")?.trim();
+  const quickSale = request.nextUrl.searchParams.get("quickSale") === "true";
 
   const products = await prisma.product.findMany({
     where: {
       ...(barcode ? { barcode } : {}),
       ...(categoryId ? { categoryId } : {}),
+      ...(quickSale ? { isActive: true, isQuickSale: true } : {}),
       ...(search
         ? {
             OR: [
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
         : {})
     },
     include: { category: true },
-    orderBy: { updatedAt: "desc" },
+    orderBy: quickSale ? { name: "asc" } : { updatedAt: "desc" },
     take: barcode ? 1 : 100
   });
 

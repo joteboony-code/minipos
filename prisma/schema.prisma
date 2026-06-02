@@ -38,6 +38,7 @@ model Product {
   unit             String          @default("ชิ้น")
   lowStockAlertQty Int             @default(5)
   isActive         Boolean         @default(true)
+  isQuickSale      Boolean         @default(false)
   saleItems        SaleItem[]
   stockMovements   StockMovement[]
   createdAt        DateTime        @default(now())

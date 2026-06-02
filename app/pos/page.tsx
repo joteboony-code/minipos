@@ -16,6 +16,14 @@ type Product = {
 };
 
 type CartItem = Product & { quantity: number };
+type PromptPayState = { configured: boolean; qrDataUrl?: string; message?: string };
+type SaleSuccess = {
+  receiptNo: string;
+  totalAmount: number;
+  paymentMethod: "CASH" | "TRANSFER";
+  cashReceived: number | null;
+  changeAmount: number | null;
+};
 
 export default function PosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +33,8 @@ export default function PosPage() {
   const [message, setMessage] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER">("CASH");
   const [cashReceived, setCashReceived] = useState("");
+  const [promptPay, setPromptPay] = useState<PromptPayState | null>(null);
+  const [successSale, setSuccessSale] = useState<SaleSuccess | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -46,7 +56,27 @@ export default function PosPage() {
 
   const total = useMemo(() => cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0), [cart]);
   const cashAmount = Number(cashReceived || 0);
-  const change = Math.max((Number.isFinite(cashAmount) ? cashAmount : 0) - total, 0);
+  const validCashAmount = Number.isFinite(cashAmount) ? cashAmount : 0;
+  const isCashTooLow = paymentMethod === "CASH" && cashReceived.trim() !== "" && validCashAmount < total;
+  const canCompleteSale = cart.length > 0 && !busy && (paymentMethod === "TRANSFER" || (cashReceived.trim() !== "" && Number.isFinite(cashAmount) && cashAmount >= total));
+  const change = Math.max(validCashAmount - total, 0);
+
+  useEffect(() => {
+    if (paymentMethod !== "TRANSFER" || total <= 0) {
+      setPromptPay(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    fetch(`/api/promptpay?amount=${encodeURIComponent(total.toFixed(2))}`, { signal: controller.signal })
+      .then((res) => res.json())
+      .then(setPromptPay)
+      .catch(() => {
+        if (!controller.signal.aborted) setPromptPay({ configured: false, message: "โหลด QR พร้อมเพย์ไม่สำเร็จ" });
+      });
+
+    return () => controller.abort();
+  }, [paymentMethod, total]);
 
   function addProduct(product: Product) {
     if (!product.isActive) return setMessage("สินค้านี้ถูกปิดใช้งาน");
@@ -117,6 +147,13 @@ export default function PosPage() {
       });
       const data = await res.json();
       if (!res.ok) return setMessage(data.error ?? "เกิดข้อผิดพลาดฐานข้อมูล");
+      setSuccessSale({
+        receiptNo: data.receiptNo,
+        totalAmount: data.totalAmount,
+        paymentMethod: data.paymentMethod,
+        cashReceived: data.cashReceived,
+        changeAmount: data.changeAmount
+      });
       setCart([]);
       setCashReceived("");
       setMessage(`บันทึกการขายสำเร็จ ${data.receiptNo}`);
@@ -254,12 +291,28 @@ export default function PosPage() {
         </div>
         {paymentMethod === "CASH" && (
           <div className="mt-5 space-y-3">
-            <label className="text-xl font-black">รับเงินสด</label>
+            <label className="text-xl font-black">รับเงิน</label>
             <input className="field min-h-16 text-2xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
-            <div className="rounded-lg bg-emerald-50 p-4 text-2xl font-black text-emerald-800">เงินทอน {baht(change)}</div>
+            {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-4 text-xl font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
+            <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-5">
+              <div className="text-xl font-black text-emerald-800">เงินทอน</div>
+              <div className="mt-1 text-5xl font-black text-emerald-700">{baht(change)}</div>
+            </div>
           </div>
         )}
-        <button className="btn btn-primary mt-6 w-full py-5 text-2xl" disabled={busy} onClick={completeSale} type="button">
+        {paymentMethod === "TRANSFER" && (
+          <div className="mt-5 rounded-lg border-2 border-blue-100 bg-blue-50 p-5 text-center">
+            <div className="text-2xl font-black text-blue-900">QR พร้อมเพย์</div>
+            <div className="mt-2 text-lg font-black text-blue-700">ยอดโอน {baht(total)}</div>
+            {promptPay?.configured && promptPay.qrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="mx-auto mt-4 rounded-lg bg-white p-3" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
+            ) : (
+              <div className="mt-4 rounded-lg bg-white p-4 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
+            )}
+          </div>
+        )}
+        <button className="btn btn-primary mt-6 w-full py-5 text-2xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
           บันทึกการขาย
         </button>
         <button
@@ -273,6 +326,27 @@ export default function PosPage() {
           ยกเลิกตะกร้า
         </button>
       </aside>
+      {successSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="card w-full max-w-lg p-6">
+            <div className="text-3xl font-black text-teal-700">บันทึกการขายสำเร็จ</div>
+            <div className="mt-5 space-y-3 text-xl font-bold">
+              <div className="flex justify-between gap-4"><span>เลขที่บิล</span><span className="text-right">{successSale.receiptNo}</span></div>
+              <div className="flex justify-between gap-4"><span>ยอดรวม</span><span>{baht(successSale.totalAmount)}</span></div>
+              {successSale.paymentMethod === "CASH" && (
+                <>
+                  <div className="flex justify-between gap-4"><span>รับเงิน</span><span>{baht(successSale.cashReceived ?? 0)}</span></div>
+                  <div className="rounded-lg bg-emerald-50 p-4 text-center">
+                    <div className="text-lg text-emerald-800">เงินทอน</div>
+                    <div className="text-4xl font-black text-emerald-700">{baht(successSale.changeAmount ?? 0)}</div>
+                  </div>
+                </>
+              )}
+            </div>
+            <button className="btn btn-primary mt-6 w-full" onClick={() => setSuccessSale(null)} type="button">ปิด</button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

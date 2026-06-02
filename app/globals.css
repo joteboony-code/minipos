@@ -93,3 +93,37 @@ textarea {
   width: 3.4rem;
   padding: 0;
 }
+
+.receipt-print {
+  display: none;
+}
+
+@media print {
+  body {
+    background: #ffffff;
+    font-size: 14px;
+  }
+
+  .screen-only,
+  aside,
+  nav,
+  main > section > .card.screen-only,
+  main > section > .screen-only {
+    display: none !important;
+  }
+
+  .receipt-print {
+    display: block !important;
+    margin: 0 auto;
+    width: 80mm;
+    max-width: 100%;
+  }
+
+  .receipt-print * {
+    box-shadow: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+}

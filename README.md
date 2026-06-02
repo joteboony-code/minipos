@@ -36,9 +36,11 @@ Copy-Item .env.example .env
 
 ```env
 DATABASE_URL="postgresql://neondb_owner:YOUR_PASSWORD@ep-your-project-id.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&schema=public"
+PROMPTPAY_ID=""
 ```
 
 ให้ใช้ connection string ของ Neon project จริงแทนค่าตัวอย่างด้านบน โดยคง `sslmode=require` ไว้ และไม่ต้องเพิ่ม `DIRECT_URL` สำหรับ MVP นี้
+ถ้าต้องการแสดง QR พร้อมเพย์บนหน้าโอนเงิน ให้ใส่เลขพร้อมเพย์ของร้านใน `PROMPTPAY_ID` เช่น เบอร์มือถือหรือเลขประจำตัวผู้เสียภาษีของร้าน
 
 4. สร้างตารางด้วย Prisma migration
 
@@ -79,6 +81,7 @@ Seed data มีสินค้าทดสอบ เช่น โค้ก 500m
 - ห้าม commit `.env` หรือ secret ใด ๆ
 - เลขที่ใบเสร็จสร้างในรูปแบบ `POS-YYYYMMDD-0001`
 - Sale completion ใช้ database transaction และมี database check constraints เพื่อกันข้อมูลผิด เช่น stock ติดลบหรือ quantity ไม่ถูกต้อง
+- `PROMPTPAY_ID` เป็นค่า optional ถ้าไม่ตั้งค่า ระบบจะแสดงข้อความ “ยังไม่ได้ตั้งค่าเลขพร้อมเพย์” แทน QR
 
 ## วิธีสร้าง Neon Database
 

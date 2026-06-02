@@ -167,37 +167,37 @@ export default function PosPage() {
   }
 
   return (
-    <section className="grid gap-6 xl:grid-cols-[1fr_500px]">
-      <div className="space-y-6">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_520px]">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-4xl font-black">ขายสินค้า</h1>
-          <p className="mt-2 text-xl font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
+          <h1 className="text-3xl font-black">ขายสินค้า</h1>
+          <p className="mt-1 text-lg font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
         </div>
-        <form onSubmit={handleSearch} className="card flex flex-col gap-3 p-4 sm:flex-row">
+        <form onSubmit={handleSearch} className="card flex flex-col gap-3 p-3 sm:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={30} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={26} />
             <input
               ref={inputRef}
-              className="field min-h-20 pl-14 text-2xl"
+              className="field min-h-14 pl-12 text-xl"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
             />
           </div>
-          <button className="btn btn-primary min-h-20 min-w-40 text-2xl" type="submit">
+          <button className="btn btn-primary min-h-14 min-w-32 text-xl" type="submit">
             เพิ่ม
           </button>
         </form>
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-200 px-5 py-5 text-3xl font-black">ปุ่มขายด่วน</div>
+          <div className="border-b border-slate-200 px-4 py-3 text-2xl font-black">ปุ่มขายด่วน</div>
           {quickSaleProducts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-5 p-5 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 p-3 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {quickSaleProducts.map((product) => {
                 const isOut = product.stockQty <= 0;
                 return (
                   <button
                     key={product.id}
-                    className={`min-h-72 overflow-hidden rounded-lg border-2 text-left font-black transition ${
+                    className={`min-h-36 overflow-hidden rounded-lg border-2 text-left font-black transition ${
                       isOut
                         ? "border-slate-200 bg-slate-100 text-slate-400 opacity-60"
                         : "border-teal-200 bg-white text-slate-950 hover:border-teal-500 hover:bg-teal-50"
@@ -206,10 +206,10 @@ export default function PosPage() {
                     onClick={() => addProduct(product)}
                     type="button"
                   >
-                    <div className="flex min-h-72 flex-col justify-between space-y-5 p-6">
-                      <div className="text-4xl leading-tight">{product.name}</div>
-                      <div className="text-5xl text-teal-700">{baht(product.salePrice)}</div>
-                      <div className={`rounded-lg px-4 py-3 text-2xl ${isOut ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-800"}`}>
+                    <div className="flex min-h-36 flex-col justify-between gap-2 p-3">
+                      <div className="line-clamp-2 text-xl leading-snug">{product.name}</div>
+                      <div className="text-2xl text-teal-700">{baht(product.salePrice)}</div>
+                      <div className={`rounded-lg px-3 py-1.5 text-sm ${isOut ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-800"}`}>
                         {isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}
                       </div>
                     </div>
@@ -218,42 +218,38 @@ export default function PosPage() {
               })}
             </div>
           ) : (
-            <div className="px-5 py-8 text-center text-lg font-bold text-slate-500">ยังไม่มีสินค้าปุ่มขายด่วน</div>
+            <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าปุ่มขายด่วน</div>
           )}
         </div>
-        {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-5 py-4 text-xl font-black text-amber-900">{message}</div>}
+        {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 text-lg font-black text-amber-900">{message}</div>}
+      </div>
+      <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-200 px-5 py-4 text-2xl font-black">ตะกร้าสินค้า</div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-lg">
-              <thead className="bg-slate-50 text-left text-slate-700">
-                <tr>
-                  <th className="px-5 py-4">สินค้า</th>
-                  <th className="px-5 py-4 text-right">ราคา</th>
-                  <th className="px-5 py-4 text-center">จำนวน</th>
-                  <th className="px-5 py-4 text-right">รวม</th>
-                  <th className="px-5 py-4 text-center">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <div className="text-2xl font-black">ตะกร้าสินค้า</div>
+            <div className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">{cart.length} รายการ</div>
+          </div>
+          <div className="max-h-[38vh] min-h-32 overflow-y-auto">
+            {cart.length === 0 ? (
+              <div className="px-4 py-8 text-center text-lg font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
+            ) : (
+              <div className="divide-y divide-slate-100">
                 {cart.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-100">
-                    <td className="px-5 py-4">
-                      <div className="text-xl font-black">{item.name}</div>
-                      <div className="mt-1 text-base font-bold text-slate-500">
-                        {item.barcode} | คงเหลือ {item.stockQty}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-right font-bold">{baht(item.salePrice)}</td>
-                    <td className="px-5 py-4 text-center text-2xl font-black">{item.quantity}</td>
-                    <td className="px-5 py-4 text-right text-xl font-black">{baht(item.salePrice * item.quantity)}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-center gap-3">
+                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-lg font-black">{item.name}</div>
+                      <div className="mt-0.5 text-sm font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
+                      <div className="mt-1 text-sm font-bold text-slate-700">{baht(item.salePrice)} x {item.quantity}</div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-xl font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
+                      <div className="flex gap-2">
                         <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
-                          <Minus size={24} />
+                          <Minus size={18} />
                         </button>
+                        <div className="flex h-11 min-w-11 items-center justify-center rounded-lg bg-slate-100 px-3 text-lg font-black">{item.quantity}</div>
                         <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
-                          <Plus size={24} />
+                          <Plus size={18} />
                         </button>
                         <button
                           className="btn btn-danger touch-icon-button"
@@ -261,74 +257,68 @@ export default function PosPage() {
                           type="button"
                           title="ลบสินค้า"
                         >
-                          <Trash2 size={24} />
+                          <Trash2 size={18} />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-                {cart.length === 0 && (
-                  <tr>
-                    <td className="px-5 py-14 text-center text-xl font-bold text-slate-500" colSpan={5}>
-                      ยังไม่มีสินค้าในตะกร้า
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <aside className="card h-fit p-6">
-        <div className="text-2xl font-black">รับชำระเงิน</div>
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <button className={`btn min-h-20 text-2xl ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("CASH")} type="button">
-            เงินสด
-          </button>
-          <button className={`btn min-h-20 text-2xl ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("TRANSFER")} type="button">
-            รับโอน
-          </button>
-        </div>
-        <div className="mt-6 rounded-lg bg-slate-100 p-5">
-          <div className="text-xl font-black text-slate-600">ยอดรวม</div>
-          <div className="mt-1 text-6xl font-black text-teal-700">{baht(total)}</div>
-        </div>
-        {paymentMethod === "CASH" && (
-          <div className="mt-5 space-y-3">
-            <label className="text-xl font-black">รับเงิน</label>
-            <input className="field min-h-20 text-3xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
-            {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-4 text-xl font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
-            <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-5">
-              <div className="text-2xl font-black text-emerald-800">เงินทอน</div>
-              <div className="mt-1 text-6xl font-black text-emerald-700">{baht(change)}</div>
-            </div>
-          </div>
-        )}
-        {paymentMethod === "TRANSFER" && (
-          <div className="mt-5 rounded-lg border-2 border-blue-100 bg-blue-50 p-5 text-center">
-            <div className="text-2xl font-black text-blue-900">QR พร้อมเพย์</div>
-            <div className="mt-2 text-lg font-black text-blue-700">ยอดโอน {baht(total)}</div>
-            {promptPay?.configured && promptPay.qrDataUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img className="mx-auto mt-4 rounded-lg bg-white p-3" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
-            ) : (
-              <div className="mt-4 rounded-lg bg-white p-4 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
+              </div>
             )}
           </div>
-        )}
-        <button className="btn btn-primary mt-6 w-full py-5 text-2xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
-          บันทึกการขาย
-        </button>
-        <button
-          className="btn btn-light mt-4 w-full py-5 text-xl"
-          onClick={() => {
-            setCart([]);
-            setMessage("");
-          }}
-          type="button"
-        >
-          ยกเลิกตะกร้า
-        </button>
+        </div>
+
+        <div className="card p-4">
+          <div className="text-2xl font-black">รับชำระเงิน</div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button className={`btn min-h-14 text-xl ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("CASH")} type="button">
+              เงินสด
+            </button>
+            <button className={`btn min-h-14 text-xl ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("TRANSFER")} type="button">
+              รับโอน
+            </button>
+          </div>
+          <div className="mt-3 rounded-lg bg-slate-100 p-4">
+            <div className="text-base font-black text-slate-600">ยอดรวม</div>
+            <div className="mt-1 text-4xl font-black text-teal-700">{baht(total)}</div>
+          </div>
+          {paymentMethod === "CASH" && (
+            <div className="mt-3 space-y-2">
+              <label className="text-lg font-black">รับเงิน</label>
+              <input className="field min-h-14 text-2xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
+              {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-3 text-lg font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
+              <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-4">
+                <div className="text-lg font-black text-emerald-800">เงินทอน</div>
+                <div className="mt-1 text-4xl font-black text-emerald-700">{baht(change)}</div>
+              </div>
+            </div>
+          )}
+          {paymentMethod === "TRANSFER" && (
+            <div className="mt-3 rounded-lg border-2 border-blue-100 bg-blue-50 p-4 text-center">
+              <div className="text-xl font-black text-blue-900">QR พร้อมเพย์</div>
+              <div className="mt-1 font-black text-blue-700">ยอดโอน {baht(total)}</div>
+              {promptPay?.configured && promptPay.qrDataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="mx-auto mt-3 max-h-52 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
+              ) : (
+                <div className="mt-3 rounded-lg bg-white p-3 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
+              )}
+            </div>
+          )}
+          <button className="btn btn-primary mt-4 w-full py-4 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
+            บันทึกการขาย
+          </button>
+          <button
+            className="btn btn-light mt-3 w-full py-3 text-lg"
+            onClick={() => {
+              setCart([]);
+              setMessage("");
+            }}
+            type="button"
+          >
+            ยกเลิกตะกร้า
+          </button>
+        </div>
       </aside>
       {successSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">

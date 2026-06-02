@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --background: #f7f8fb;
+  --foreground: #172033;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 18px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.card {
+  border: 1px solid #e4e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.06);
+}
+
+.field {
+  width: 100%;
+  min-height: 3.75rem;
+  border: 2px solid #cfd6e3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0.95rem 1rem;
+  outline: none;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.field:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3.5rem;
+  border-radius: 8px;
+  padding: 0.85rem 1.15rem;
+  font-size: 1.08rem;
+  font-weight: 800;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn-primary {
+  background: #0d9488;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0f766e;
+}
+
+.btn-dark {
+  background: #172033;
+  color: white;
+}
+
+.btn-light {
+  border: 1px solid #cfd6e3;
+  background: #ffffff;
+  color: #172033;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+
+.touch-icon-button {
+  height: 3.4rem;
+  width: 3.4rem;
+  padding: 0;
+}

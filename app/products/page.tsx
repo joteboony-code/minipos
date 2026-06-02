@@ -1,0 +1,167 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Save, Search } from "lucide-react";
+import { baht } from "@/lib/format";
+
+type Category = { id: string; name: string };
+type Product = {
+  id: string;
+  barcode: string;
+  name: string;
+  categoryId: string | null;
+  category?: Category | null;
+  costPrice: number;
+  salePrice: number;
+  stockQty: number;
+  unit: string;
+  lowStockAlertQty: number;
+  isActive: boolean;
+};
+
+const empty = {
+  barcode: "",
+  name: "",
+  categoryId: "",
+  costPrice: "0",
+  salePrice: "0",
+  stockQty: "0",
+  unit: "ชิ้น",
+  lowStockAlertQty: "5",
+  isActive: true
+};
+
+export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [form, setForm] = useState(empty);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [message, setMessage] = useState("");
+
+  const load = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (categoryId) params.set("categoryId", categoryId);
+    const [productsRes, categoriesRes] = await Promise.all([fetch(`/api/products?${params}`), fetch("/api/categories")]);
+    setProducts(await productsRes.json());
+    setCategories(await categoriesRes.json());
+  }, [categoryId, search]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    const payload = {
+      ...form,
+      costPrice: Number(form.costPrice),
+      salePrice: Number(form.salePrice),
+      stockQty: Number(form.stockQty),
+      lowStockAlertQty: Number(form.lowStockAlertQty)
+    };
+    const res = await fetch(editingId ? `/api/products/${editingId}` : "/api/products", {
+      method: editingId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      return setMessage(data.error ?? "บันทึกสินค้าไม่สำเร็จ ตรวจสอบบาร์โค้ดซ้ำหรือข้อมูลไม่ถูกต้อง");
+    }
+    setForm(empty);
+    setEditingId(null);
+    setMessage("บันทึกสินค้าแล้ว");
+    await load();
+  }
+
+  function edit(product: Product) {
+    setEditingId(product.id);
+    setForm({
+      barcode: product.barcode,
+      name: product.name,
+      categoryId: product.categoryId ?? "",
+      costPrice: String(product.costPrice),
+      salePrice: String(product.salePrice),
+      stockQty: String(product.stockQty),
+      unit: product.unit,
+      lowStockAlertQty: String(product.lowStockAlertQty),
+      isActive: product.isActive
+    });
+  }
+
+  async function disable(product: Product) {
+    await fetch(`/api/products/${product.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: false })
+    });
+    await load();
+  }
+
+  return (
+    <section className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-black">สินค้า</h1>
+        <p className="text-slate-500">เพิ่ม แก้ไข ค้นหา และปิดใช้งานสินค้า</p>
+      </div>
+      {message && <div className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 font-bold text-teal-800">{message}</div>}
+      <form onSubmit={save} className="card grid gap-3 p-4 md:grid-cols-4">
+        <input className="field" placeholder="บาร์โค้ด" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} required />
+        <input className="field" placeholder="ชื่อสินค้า" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        <select className="field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+          <option value="">ไม่ระบุหมวดหมู่</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <input className="field" placeholder="หน่วย" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+        <input className="field" type="number" step="0.01" placeholder="ราคาทุน" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
+        <input className="field" type="number" step="0.01" placeholder="ราคาขาย" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
+        <input className="field" type="number" placeholder="จำนวนสต็อก" value={form.stockQty} onChange={(e) => setForm({ ...form, stockQty: e.target.value })} />
+        <input className="field" type="number" placeholder="แจ้งเตือนใกล้หมด" value={form.lowStockAlertQty} onChange={(e) => setForm({ ...form, lowStockAlertQty: e.target.value })} />
+        <label className="flex items-center gap-2 font-bold">
+          <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
+          เปิดใช้งาน
+        </label>
+        <button className="btn btn-primary md:col-span-3" type="submit"><Save size={18} />{editingId ? "บันทึกการแก้ไข" : "เพิ่มสินค้า"}</button>
+      </form>
+      <div className="card flex flex-col gap-3 p-3 md:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input className="field pl-10" placeholder="ค้นหาชื่อหรือบาร์โค้ด" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select className="field md:w-64" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <option value="">ทุกหมวดหมู่</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <button className="btn btn-dark" onClick={load} type="button">ค้นหา</button>
+      </div>
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[900px] text-sm">
+          <thead className="bg-slate-50 text-left text-slate-600">
+            <tr>
+              <th className="px-4 py-3">สินค้า</th><th className="px-4 py-3">หมวดหมู่</th><th className="px-4 py-3 text-right">ทุน</th><th className="px-4 py-3 text-right">ขาย</th><th className="px-4 py-3 text-center">สต็อก</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3 text-right">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((product) => (
+              <tr key={product.id} className={`border-t border-slate-100 ${product.stockQty <= product.lowStockAlertQty ? "bg-amber-50" : ""}`}>
+                <td className="px-4 py-3"><div className="font-bold">{product.name}</div><div className="text-xs text-slate-500">{product.barcode}</div></td>
+                <td className="px-4 py-3">{product.category?.name ?? "-"}</td>
+                <td className="px-4 py-3 text-right">{baht(product.costPrice)}</td>
+                <td className="px-4 py-3 text-right font-bold">{baht(product.salePrice)}</td>
+                <td className="px-4 py-3 text-center font-black">{product.stockQty} {product.unit}</td>
+                <td className="px-4 py-3">{product.isActive ? "ใช้งาน" : "ปิดใช้งาน"}</td>
+                <td className="px-4 py-3 text-right">
+                  <button className="btn btn-light mr-2" onClick={() => edit(product)} type="button">แก้ไข</button>
+                  <button className="btn btn-danger" disabled={!product.isActive} onClick={() => disable(product)} type="button">ปิดใช้</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

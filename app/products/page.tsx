@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Save, Search } from "lucide-react";
 import { baht } from "@/lib/format";
 
@@ -112,26 +112,40 @@ export default function ProductsPage() {
       </div>
       {message && <div className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 font-bold text-teal-800">{message}</div>}
       <form onSubmit={save} className="card grid gap-3 p-4 md:grid-cols-4">
-        <input className="field" placeholder="บาร์โค้ด" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} required />
-        <input className="field" placeholder="ชื่อสินค้า" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-        <select className="field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-          <option value="">ไม่ระบุหมวดหมู่</option>
-          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
-        <input className="field" placeholder="หน่วย" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
-        <input className="field" type="number" step="0.01" placeholder="ราคาทุน" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
-        <input className="field" type="number" step="0.01" placeholder="ราคาขาย" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
-        <input className="field" type="number" placeholder="จำนวนสต็อก" value={form.stockQty} onChange={(e) => setForm({ ...form, stockQty: e.target.value })} />
-        <input className="field" type="number" placeholder="แจ้งเตือนใกล้หมด" value={form.lowStockAlertQty} onChange={(e) => setForm({ ...form, lowStockAlertQty: e.target.value })} />
-        <label className="flex items-center gap-2 font-bold">
+        <FieldGroup label="บาร์โค้ด">
+          <input className="field" placeholder="เช่น 8850001000011" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} required />
+        </FieldGroup>
+        <FieldGroup label="ชื่อสินค้า">
+          <input className="field" placeholder="เช่น น้ำเปล่า 600ml" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </FieldGroup>
+        <FieldGroup label="หมวดหมู่">
+          <select className="field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+            <option value="">ไม่ระบุหมวดหมู่</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </FieldGroup>
+        <FieldGroup label="หน่วย เช่น ชิ้น/ขวด/ซอง/แพ็ค">
+          <input className="field" placeholder="เช่น ขวด" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+        </FieldGroup>
+        <FieldGroup label="ราคาทุน" helper="ใช้คำนวณกำไร">
+          <input className="field" type="number" step="0.01" placeholder="เช่น 5.00" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
+        </FieldGroup>
+        <FieldGroup label="ราคาขาย" helper="ราคาที่คิดเงินลูกค้า">
+          <input className="field" type="number" step="0.01" placeholder="เช่น 10.00" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
+        </FieldGroup>
+        <FieldGroup label="สต๊อกคงเหลือ" helper="จำนวนสินค้าที่มีตอนนี้">
+          <input className="field" type="number" placeholder="เช่น 24" value={form.stockQty} onChange={(e) => setForm({ ...form, stockQty: e.target.value })} />
+        </FieldGroup>
+        <FieldGroup label="แจ้งเตือนเมื่อเหลือน้อยกว่า" helper="ถ้าสต๊อกเหลือน้อยกว่าค่านี้ จะถือว่าใกล้หมด">
+          <input className="field" type="number" placeholder="เช่น 5" value={form.lowStockAlertQty} onChange={(e) => setForm({ ...form, lowStockAlertQty: e.target.value })} />
+        </FieldGroup>
+        <CheckboxField label="เปิดใช้งาน">
           <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-          เปิดใช้งาน
-        </label>
-        <label className="flex items-center gap-2 font-bold">
+        </CheckboxField>
+        <CheckboxField label="ปุ่มขายด่วน" helper="แสดงสินค้านี้ในหน้า POS ให้กดขายเร็ว">
           <input type="checkbox" checked={form.isQuickSale} onChange={(e) => setForm({ ...form, isQuickSale: e.target.checked })} />
-          ปุ่มขายด่วน
-        </label>
-        <button className="btn btn-primary md:col-span-2" type="submit"><Save size={18} />{editingId ? "บันทึกการแก้ไข" : "เพิ่มสินค้า"}</button>
+        </CheckboxField>
+        <button className="btn btn-primary md:col-span-2" type="submit"><Save size={18} />{editingId ? "บันทึกสินค้า" : "เพิ่มสินค้า"}</button>
       </form>
       <div className="card flex flex-col gap-3 p-3 md:flex-row">
         <div className="relative flex-1">
@@ -171,5 +185,27 @@ export default function ProductsPage() {
         </table>
       </div>
     </section>
+  );
+}
+
+function FieldGroup({ label, helper, children }: { label: string; helper?: string; children: ReactNode }) {
+  return (
+    <label className="block space-y-2">
+      <span className="block text-base font-black text-slate-800">{label}</span>
+      {children}
+      {helper && <span className="block text-sm font-bold text-slate-500">{helper}</span>}
+    </label>
+  );
+}
+
+function CheckboxField({ label, helper, children }: { label: string; helper?: string; children: ReactNode }) {
+  return (
+    <label className="flex min-h-16 items-start gap-3 rounded-lg border border-slate-200 bg-white p-3">
+      <span className="mt-1">{children}</span>
+      <span>
+        <span className="block text-base font-black text-slate-800">{label}</span>
+        {helper && <span className="block text-sm font-bold text-slate-500">{helper}</span>}
+      </span>
+    </label>
   );
 }

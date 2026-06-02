@@ -191,24 +191,28 @@ export default function PosPage() {
         <div className="card overflow-hidden">
           <div className="border-b border-slate-200 px-5 py-4 text-2xl font-black">ปุ่มขายด่วน</div>
           {quickSaleProducts.length > 0 ? (
-            <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 p-4 lg:grid-cols-3 2xl:grid-cols-4">
               {quickSaleProducts.map((product) => {
                 const isOut = product.stockQty <= 0;
                 return (
                   <button
                     key={product.id}
-                    className={`min-h-28 rounded-lg border-2 p-4 text-left font-black transition ${
+                    className={`min-h-64 overflow-hidden rounded-lg border-2 text-left font-black transition ${
                       isOut
-                        ? "border-slate-200 bg-slate-100 text-slate-400"
-                        : "border-teal-200 bg-teal-50 text-slate-900 hover:border-teal-500 hover:bg-teal-100"
+                        ? "border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                        : "border-teal-200 bg-white text-slate-950 hover:border-teal-500 hover:bg-teal-50"
                     }`}
                     disabled={isOut}
                     onClick={() => addProduct(product)}
                     type="button"
                   >
-                    <div className="text-xl">{product.name}</div>
-                    <div className="mt-2 text-2xl text-teal-700">{baht(product.salePrice)}</div>
-                    <div className="mt-1 text-base text-slate-600">{isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}</div>
+                    <div className="flex min-h-64 flex-col justify-between space-y-4 p-5">
+                      <div className="text-3xl leading-tight">{product.name}</div>
+                      <div className="text-4xl text-teal-700">{baht(product.salePrice)}</div>
+                      <div className={`rounded-lg px-3 py-2 text-xl ${isOut ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-800"}`}>
+                        {isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}
+                      </div>
+                    </div>
                   </button>
                 );
               })}

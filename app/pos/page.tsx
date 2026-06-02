@@ -167,11 +167,11 @@ export default function PosPage() {
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_520px]">
-      <div className="space-y-4">
+    <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_500px]">
+      <div className="space-y-3">
         <div>
-          <h1 className="text-3xl font-black">ขายสินค้า</h1>
-          <p className="mt-1 text-lg font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
+          <h1 className="text-2xl font-black">ขายสินค้า</h1>
+          <p className="mt-1 font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
         </div>
         <form onSubmit={handleSearch} className="card flex flex-col gap-3 p-3 sm:flex-row">
           <div className="relative flex-1">
@@ -189,15 +189,15 @@ export default function PosPage() {
           </button>
         </form>
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-200 px-4 py-3 text-2xl font-black">ปุ่มขายด่วน</div>
+          <div className="border-b border-slate-200 px-3 py-2 text-xl font-black">ปุ่มขายด่วน</div>
           {quickSaleProducts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 p-3 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2.5 p-3 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {quickSaleProducts.map((product) => {
                 const isOut = product.stockQty <= 0;
                 return (
                   <button
                     key={product.id}
-                    className={`min-h-36 overflow-hidden rounded-lg border-2 text-left font-black transition ${
+                    className={`min-h-28 overflow-hidden rounded-lg border-2 text-left font-black transition ${
                       isOut
                         ? "border-slate-200 bg-slate-100 text-slate-400 opacity-60"
                         : "border-teal-200 bg-white text-slate-950 hover:border-teal-500 hover:bg-teal-50"
@@ -206,10 +206,10 @@ export default function PosPage() {
                     onClick={() => addProduct(product)}
                     type="button"
                   >
-                    <div className="flex min-h-36 flex-col justify-between gap-2 p-3">
-                      <div className="line-clamp-2 text-xl leading-snug">{product.name}</div>
-                      <div className="text-2xl text-teal-700">{baht(product.salePrice)}</div>
-                      <div className={`rounded-lg px-3 py-1.5 text-sm ${isOut ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-800"}`}>
+                    <div className="flex min-h-28 flex-col justify-between gap-1.5 p-2.5">
+                      <div className="line-clamp-2 text-lg leading-tight">{product.name}</div>
+                      <div className="text-xl text-teal-700">{baht(product.salePrice)}</div>
+                      <div className={`rounded-md px-2 py-1 text-xs ${isOut ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-800"}`}>
                         {isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}
                       </div>
                     </div>
@@ -221,33 +221,33 @@ export default function PosPage() {
             <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าปุ่มขายด่วน</div>
           )}
         </div>
-        {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 text-lg font-black text-amber-900">{message}</div>}
+        {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-2 font-black text-amber-900">{message}</div>}
       </div>
-      <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+      <aside className="space-y-3 xl:sticky xl:top-3 xl:self-start">
         <div className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <div className="text-2xl font-black">ตะกร้าสินค้า</div>
+          <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+            <div className="text-xl font-black">ตะกร้าสินค้า</div>
             <div className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">{cart.length} รายการ</div>
           </div>
-          <div className="max-h-[38vh] min-h-32 overflow-y-auto">
+          <div className="max-h-[34vh] min-h-28 overflow-y-auto">
             {cart.length === 0 ? (
-              <div className="px-4 py-8 text-center text-lg font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
+              <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
             ) : (
               <div className="divide-y divide-slate-100">
                 {cart.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 py-3">
+                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2">
                     <div className="min-w-0">
-                      <div className="truncate text-lg font-black">{item.name}</div>
-                      <div className="mt-0.5 text-sm font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
-                      <div className="mt-1 text-sm font-bold text-slate-700">{baht(item.salePrice)} x {item.quantity}</div>
+                      <div className="truncate text-base font-black">{item.name}</div>
+                      <div className="mt-0.5 text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
+                      <div className="mt-0.5 text-sm font-bold text-slate-700">{baht(item.salePrice)} x {item.quantity}</div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="text-xl font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
-                      <div className="flex gap-2">
+                    <div className="flex flex-col items-end gap-1.5">
+                      <div className="text-lg font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
+                      <div className="flex gap-1.5">
                         <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
                           <Minus size={18} />
                         </button>
-                        <div className="flex h-11 min-w-11 items-center justify-center rounded-lg bg-slate-100 px-3 text-lg font-black">{item.quantity}</div>
+                        <div className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-slate-100 px-2 text-base font-black">{item.quantity}</div>
                         <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
                           <Plus size={18} />
                         </button>
@@ -268,48 +268,48 @@ export default function PosPage() {
           </div>
         </div>
 
-        <div className="card p-4">
-          <div className="text-2xl font-black">รับชำระเงิน</div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <button className={`btn min-h-14 text-xl ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("CASH")} type="button">
+        <div className="card p-3">
+          <div className="text-xl font-black">รับชำระเงิน</div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button className={`btn min-h-12 text-lg ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("CASH")} type="button">
               เงินสด
             </button>
-            <button className={`btn min-h-14 text-xl ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("TRANSFER")} type="button">
+            <button className={`btn min-h-12 text-lg ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("TRANSFER")} type="button">
               รับโอน
             </button>
           </div>
-          <div className="mt-3 rounded-lg bg-slate-100 p-4">
-            <div className="text-base font-black text-slate-600">ยอดรวม</div>
-            <div className="mt-1 text-4xl font-black text-teal-700">{baht(total)}</div>
+          <div className="mt-2 rounded-lg bg-slate-100 p-3">
+            <div className="text-sm font-black text-slate-600">ยอดรวม</div>
+            <div className="text-3xl font-black text-teal-700">{baht(total)}</div>
           </div>
           {paymentMethod === "CASH" && (
-            <div className="mt-3 space-y-2">
-              <label className="text-lg font-black">รับเงิน</label>
-              <input className="field min-h-14 text-2xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
-              {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-3 text-lg font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
-              <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-4">
-                <div className="text-lg font-black text-emerald-800">เงินทอน</div>
-                <div className="mt-1 text-4xl font-black text-emerald-700">{baht(change)}</div>
+            <div className="mt-2 space-y-1.5">
+              <label className="font-black">รับเงิน</label>
+              <input className="field min-h-12 text-xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
+              {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
+              <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-3">
+                <div className="font-black text-emerald-800">เงินทอน</div>
+                <div className="text-3xl font-black text-emerald-700">{baht(change)}</div>
               </div>
             </div>
           )}
           {paymentMethod === "TRANSFER" && (
-            <div className="mt-3 rounded-lg border-2 border-blue-100 bg-blue-50 p-4 text-center">
-              <div className="text-xl font-black text-blue-900">QR พร้อมเพย์</div>
-              <div className="mt-1 font-black text-blue-700">ยอดโอน {baht(total)}</div>
+            <div className="mt-2 rounded-lg border-2 border-blue-100 bg-blue-50 p-3 text-center">
+              <div className="text-lg font-black text-blue-900">QR พร้อมเพย์</div>
+              <div className="font-black text-blue-700">ยอดโอน {baht(total)}</div>
               {promptPay?.configured && promptPay.qrDataUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="mx-auto mt-3 max-h-52 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
+                <img className="mx-auto mt-2 max-h-44 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
               ) : (
-                <div className="mt-3 rounded-lg bg-white p-3 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
+                <div className="mt-2 rounded-lg bg-white p-2 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
               )}
             </div>
           )}
-          <button className="btn btn-primary mt-4 w-full py-4 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
+          <button className="btn btn-primary mt-3 w-full py-3 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
             บันทึกการขาย
           </button>
           <button
-            className="btn btn-light mt-3 w-full py-3 text-lg"
+            className="btn btn-light mt-2 w-full py-2 text-base"
             onClick={() => {
               setCart([]);
               setMessage("");

@@ -30,6 +30,9 @@ export default function PosPage() {
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quickSaleProducts, setQuickSaleProducts] = useState<Product[]>([]);
+  const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewSearchedQuery, setPreviewSearchedQuery] = useState("");
   const [message, setMessage] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER">("CASH");
   const [cashReceived, setCashReceived] = useState("");
@@ -60,6 +63,9 @@ export default function PosPage() {
   const isCashTooLow = paymentMethod === "CASH" && cashReceived.trim() !== "" && validCashAmount < total;
   const canCompleteSale = cart.length > 0 && !busy && (paymentMethod === "TRANSFER" || (cashReceived.trim() !== "" && Number.isFinite(cashAmount) && cashAmount >= total));
   const change = Math.max(validCashAmount - total, 0);
+  const trimmedQuery = query.trim();
+  const previewExactProduct = previewProducts.find((product) => product.barcode === trimmedQuery) ?? previewProducts[0];
+  const showNoPreviewResult = trimmedQuery !== "" && !previewLoading && previewSearchedQuery === trimmedQuery && previewProducts.length === 0;
 
   useEffect(() => {
     if (paymentMethod !== "TRANSFER" || total <= 0) {
@@ -78,14 +84,54 @@ export default function PosPage() {
     return () => controller.abort();
   }, [paymentMethod, total]);
 
+  useEffect(() => {
+    const keyword = query.trim();
+    if (!keyword) {
+      setPreviewProducts([]);
+      setPreviewSearchedQuery("");
+      setPreviewLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      const isBarcode = /^\d+$/.test(keyword);
+      setPreviewLoading(true);
+      fetch(`/api/products?${isBarcode ? "barcode" : "search"}=${encodeURIComponent(keyword)}`, { signal: controller.signal })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setPreviewProducts((data as Product[]).slice(0, 5));
+          } else {
+            setPreviewProducts([]);
+          }
+          setPreviewSearchedQuery(keyword);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setPreviewProducts([]);
+            setPreviewSearchedQuery(keyword);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setPreviewLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
+
   function addProduct(product: Product) {
-    if (!product.isActive) return setMessage("สินค้านี้ถูกปิดใช้งาน");
+    if (!product.isActive) return setMessage("สินค้าถูกปิดการขาย");
     const found = cart.find((item) => item.id === product.id);
     if (found && found.quantity + 1 > product.stockQty) {
       return setMessage("สต็อกไม่พอสำหรับสินค้านี้");
     }
     if (!found && product.stockQty < 1) {
-      return setMessage("สินค้าหมดสต็อก");
+      return setMessage("สต๊อกหมด");
     }
     setCart((items) =>
       found
@@ -95,10 +141,30 @@ export default function PosPage() {
     setMessage("");
   }
 
+  function addPreviewProduct(product: Product) {
+    addProduct(product);
+    if (product.isActive && product.stockQty > 0) {
+      setQuery("");
+      setPreviewProducts([]);
+      setPreviewSearchedQuery("");
+    }
+    inputRef.current?.focus();
+  }
+
+  function productStatus(product: Product) {
+    if (!product.isActive) return { label: "สินค้าถูกปิดการขาย", className: "bg-red-50 text-red-700" };
+    if (product.stockQty <= 0) return { label: "สต๊อกหมด", className: "bg-red-50 text-red-700" };
+    return { label: `คงเหลือ ${product.stockQty} ${product.unit}`, className: "bg-emerald-50 text-emerald-700" };
+  }
+
   async function handleSearch(event: React.FormEvent) {
     event.preventDefault();
     const keyword = query.trim();
     if (!keyword) return;
+    if (previewExactProduct && previewSearchedQuery === keyword) {
+      addPreviewProduct(previewExactProduct);
+      return;
+    }
     const isBarcode = /^\d+$/.test(keyword);
     const res = await fetch(`/api/products?${isBarcode ? "barcode" : "search"}=${encodeURIComponent(keyword)}`);
     const data = await res.json();
@@ -109,10 +175,12 @@ export default function PosPage() {
     }
     const products = data as Product[];
     if (products.length === 0) {
-      setMessage("ไม่พบบาร์โค้ดหรือชื่อสินค้านี้");
+      setMessage("ไม่พบสินค้า");
     } else {
       addProduct(products[0]);
       setQuery("");
+      setPreviewProducts([]);
+      setPreviewSearchedQuery("");
     }
     inputRef.current?.focus();
   }
@@ -166,6 +234,125 @@ export default function PosPage() {
     }
   }
 
+  function renderPaymentPanel() {
+    return (
+      <div className="card p-3">
+        <div className="text-xl font-black">รับชำระเงิน</div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button className={`btn min-h-12 text-lg ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("CASH")} type="button">
+            เงินสด
+          </button>
+          <button className={`btn min-h-12 text-lg ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("TRANSFER")} type="button">
+            รับโอน
+          </button>
+        </div>
+        <div className="mt-2 rounded-lg bg-slate-100 p-3">
+          <div className="text-sm font-black text-slate-600">ยอดรวม</div>
+          <div className="text-3xl font-black text-teal-700">{baht(total)}</div>
+        </div>
+        {paymentMethod === "CASH" && (
+          <div className="mt-2 space-y-1.5">
+            <label className="font-black">รับเงิน</label>
+            <input className="field min-h-12 text-xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
+            {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
+            <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-3">
+              <div className="font-black text-emerald-800">เงินทอน</div>
+              <div className="text-3xl font-black text-emerald-700">{baht(change)}</div>
+            </div>
+          </div>
+        )}
+        {paymentMethod === "TRANSFER" && (
+          <div className="mt-2 rounded-lg border-2 border-blue-100 bg-blue-50 p-3 text-center">
+            <div className="text-lg font-black text-blue-900">QR พร้อมเพย์</div>
+            <div className="font-black text-blue-700">ยอดโอน {baht(total)}</div>
+            {promptPay?.configured && promptPay.qrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="mx-auto mt-2 max-h-44 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
+            ) : (
+              <div className="mt-2 rounded-lg bg-white p-2 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
+            )}
+          </div>
+        )}
+        <button className="btn btn-primary mt-3 w-full py-3 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
+          บันทึกการขาย
+        </button>
+        <button
+          className="btn btn-light mt-2 w-full py-2 text-base"
+          onClick={() => {
+            setCart([]);
+            setMessage("");
+          }}
+          type="button"
+        >
+          ยกเลิกตะกร้า
+        </button>
+      </div>
+    );
+  }
+
+  function renderProductPreview() {
+    if (!trimmedQuery) return null;
+
+    if (previewLoading) {
+      return <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-slate-500">กำลังค้นหาสินค้า...</div>;
+    }
+
+    if (showNoPreviewResult) {
+      return <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-black text-amber-800">ไม่พบสินค้า</div>;
+    }
+
+    if (previewProducts.length === 0) return null;
+
+    const isExactBarcode = previewProducts.length === 1 && previewProducts[0].barcode === trimmedQuery;
+    if (isExactBarcode) {
+      const product = previewProducts[0];
+      const status = productStatus(product);
+      return (
+        <button
+          className="mt-2 w-full rounded-lg border-2 border-teal-200 bg-teal-50 px-3 py-2 text-left transition hover:border-teal-500"
+          onClick={() => addPreviewProduct(product)}
+          type="button"
+        >
+          <div className="text-sm font-black text-teal-800">สินค้าที่พบ</div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-lg font-black text-slate-950">{product.name}</span>
+            <span className="text-sm font-bold text-slate-500">{product.barcode}</span>
+            <span className="text-lg font-black text-teal-700">ราคา {baht(product.salePrice)}</span>
+            <span className={`rounded-md px-2 py-1 text-sm font-black ${status.className}`}>{status.label}</span>
+          </div>
+        </button>
+      );
+    }
+
+    return (
+      <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-sm font-black text-slate-600">สินค้าที่พบ</div>
+        <div className="divide-y divide-slate-100">
+          {previewProducts.map((product) => {
+            const status = productStatus(product);
+            return (
+              <button
+                key={product.id}
+                className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2 text-left hover:bg-teal-50"
+                onClick={() => addPreviewProduct(product)}
+                type="button"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-black text-slate-950">{product.name}</div>
+                  <div className="text-xs font-bold text-slate-500">{product.barcode}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-black text-teal-700">ราคา {baht(product.salePrice)}</div>
+                  <div className={`mt-1 rounded-md px-2 py-0.5 text-xs font-black ${status.className}`}>{status.label}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_500px]">
       <div className="space-y-3">
@@ -173,21 +360,68 @@ export default function PosPage() {
           <h1 className="text-2xl font-black">ขายสินค้า</h1>
           <p className="mt-1 font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
         </div>
-        <form onSubmit={handleSearch} className="card flex flex-col gap-3 p-3 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={26} />
-            <input
-              ref={inputRef}
-              className="field min-h-14 pl-12 text-xl"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
-            />
+        <form onSubmit={handleSearch} className="card p-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={26} />
+              <input
+                ref={inputRef}
+                className="field min-h-14 pl-12 text-xl"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
+              />
+            </div>
+            <button className="btn btn-primary min-h-14 min-w-32 text-xl" type="submit">
+              เพิ่ม
+            </button>
           </div>
-          <button className="btn btn-primary min-h-14 min-w-32 text-xl" type="submit">
-            เพิ่ม
-          </button>
+          {renderProductPreview()}
         </form>
+        <div className="xl:hidden">{renderPaymentPanel()}</div>
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+            <div className="text-xl font-black">ตะกร้าสินค้า</div>
+            <div className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">{cart.length} รายการ</div>
+          </div>
+          <div className="max-h-[36vh] min-h-28 overflow-y-auto xl:max-h-[42vh]">
+            {cart.length === 0 ? (
+              <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {cart.map((item) => (
+                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-1.5">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black">{item.name}</div>
+                      <div className="mt-0.5 text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
+                      <div className="mt-0.5 text-xs font-bold text-slate-700">{baht(item.salePrice)} x {item.quantity}</div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="text-base font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
+                      <div className="flex gap-1">
+                        <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
+                          <Minus size={16} />
+                        </button>
+                        <div className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-slate-100 px-2 text-sm font-black">{item.quantity}</div>
+                        <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
+                          <Plus size={16} />
+                        </button>
+                        <button
+                          className="btn btn-danger touch-icon-button"
+                          onClick={() => setCart((items) => items.filter((entry) => entry.id !== item.id))}
+                          type="button"
+                          title="ลบสินค้า"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
         <div className="card overflow-hidden">
           <div className="border-b border-slate-200 px-3 py-2 text-xl font-black">ปุ่มขายด่วน</div>
           {quickSaleProducts.length > 0 ? (
@@ -223,102 +457,8 @@ export default function PosPage() {
         </div>
         {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-2 font-black text-amber-900">{message}</div>}
       </div>
-      <aside className="space-y-3 xl:sticky xl:top-3 xl:self-start">
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-            <div className="text-xl font-black">ตะกร้าสินค้า</div>
-            <div className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">{cart.length} รายการ</div>
-          </div>
-          <div className="max-h-[34vh] min-h-28 overflow-y-auto">
-            {cart.length === 0 ? (
-              <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {cart.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-base font-black">{item.name}</div>
-                      <div className="mt-0.5 text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
-                      <div className="mt-0.5 text-sm font-bold text-slate-700">{baht(item.salePrice)} x {item.quantity}</div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <div className="text-lg font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
-                      <div className="flex gap-1.5">
-                        <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
-                          <Minus size={18} />
-                        </button>
-                        <div className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-slate-100 px-2 text-base font-black">{item.quantity}</div>
-                        <button className="btn btn-light touch-icon-button" onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
-                          <Plus size={18} />
-                        </button>
-                        <button
-                          className="btn btn-danger touch-icon-button"
-                          onClick={() => setCart((items) => items.filter((entry) => entry.id !== item.id))}
-                          type="button"
-                          title="ลบสินค้า"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="card p-3">
-          <div className="text-xl font-black">รับชำระเงิน</div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button className={`btn min-h-12 text-lg ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("CASH")} type="button">
-              เงินสด
-            </button>
-            <button className={`btn min-h-12 text-lg ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} onClick={() => setPaymentMethod("TRANSFER")} type="button">
-              รับโอน
-            </button>
-          </div>
-          <div className="mt-2 rounded-lg bg-slate-100 p-3">
-            <div className="text-sm font-black text-slate-600">ยอดรวม</div>
-            <div className="text-3xl font-black text-teal-700">{baht(total)}</div>
-          </div>
-          {paymentMethod === "CASH" && (
-            <div className="mt-2 space-y-1.5">
-              <label className="font-black">รับเงิน</label>
-              <input className="field min-h-12 text-xl" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} type="number" min="0" step="0.01" />
-              {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
-              <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-3">
-                <div className="font-black text-emerald-800">เงินทอน</div>
-                <div className="text-3xl font-black text-emerald-700">{baht(change)}</div>
-              </div>
-            </div>
-          )}
-          {paymentMethod === "TRANSFER" && (
-            <div className="mt-2 rounded-lg border-2 border-blue-100 bg-blue-50 p-3 text-center">
-              <div className="text-lg font-black text-blue-900">QR พร้อมเพย์</div>
-              <div className="font-black text-blue-700">ยอดโอน {baht(total)}</div>
-              {promptPay?.configured && promptPay.qrDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="mx-auto mt-2 max-h-44 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
-              ) : (
-                <div className="mt-2 rounded-lg bg-white p-2 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
-              )}
-            </div>
-          )}
-          <button className="btn btn-primary mt-3 w-full py-3 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
-            บันทึกการขาย
-          </button>
-          <button
-            className="btn btn-light mt-2 w-full py-2 text-base"
-            onClick={() => {
-              setCart([]);
-              setMessage("");
-            }}
-            type="button"
-          >
-            ยกเลิกตะกร้า
-          </button>
-        </div>
+      <aside className="hidden xl:sticky xl:top-3 xl:block xl:self-start">
+        {renderPaymentPanel()}
       </aside>
       {successSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">

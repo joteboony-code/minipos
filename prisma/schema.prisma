@@ -150,3 +150,25 @@ model CreditPayment {
   @@index([saleId])
   @@index([createdAt])
 }
+
+model CashShift {
+  id                 String    @id @default(cuid())
+  openedByRole       String?
+  openedAt           DateTime  @default(now())
+  closedAt           DateTime?
+  openingCash        Decimal   @db.Decimal(10, 2)
+  closingCash        Decimal?  @db.Decimal(10, 2)
+  expectedCash       Decimal?  @db.Decimal(10, 2)
+  cashSalesTotal     Decimal   @default(0) @db.Decimal(10, 2)
+  transferSalesTotal Decimal   @default(0) @db.Decimal(10, 2)
+  creditSalesTotal   Decimal   @default(0) @db.Decimal(10, 2)
+  totalSales         Decimal   @default(0) @db.Decimal(10, 2)
+  billCount          Int       @default(0)
+  note               String?
+  status             String    @default("OPEN")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([openedAt])
+}

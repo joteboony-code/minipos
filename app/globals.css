@@ -119,6 +119,16 @@ textarea {
     max-width: 100%;
   }
 
+  .receipt-print.size-58 {
+    width: 58mm;
+    font-size: 9px;
+  }
+
+  .receipt-print.size-a4 {
+    width: 210mm;
+    font-size: 13px;
+  }
+
   .receipt-print * {
     box-shadow: none !important;
   }

@@ -4,7 +4,7 @@ const exports = [
   {
     href: "/api/backup?type=full",
     title: "ส่งออกข้อมูลทั้งหมด",
-    description: "ดาวน์โหลด JSON รวม categories, products, sales, saleItems และ stockMovements",
+    description: "ดาวน์โหลด JSON รวม categories, products, productBatches, sales, saleItems, saleItemBatches, stockMovements, creditPayments และ cashShifts",
     button: "ดาวน์โหลด JSON"
   },
   {

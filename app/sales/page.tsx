@@ -67,6 +67,7 @@ export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [role, setRole] = useState<"OWNER" | "STAFF" | null>(null);
+  const [printSize, setPrintSize] = useState<"58" | "80" | "a4">("80");
 
   useEffect(() => {
     fetch("/api/auth/me").then((res) => res.ok ? res.json() : null).then((data) => setRole(data?.role ?? null));
@@ -181,7 +182,7 @@ export default function SalesPage() {
                 {openId === sale.id && (
                   <tr className="bg-slate-50">
                     <td className="px-4 py-4" colSpan={role === "OWNER" ? 7 : 6}>
-                      <ReceiptDetail sale={sale} onPrint={() => printReceipt(sale.id)} role={role} />
+                      <ReceiptDetail sale={sale} onPrint={() => printReceipt(sale.id)} role={role} printSize={printSize} onPrintSizeChange={setPrintSize} />
                     </td>
                   </tr>
                 )}
@@ -191,7 +192,7 @@ export default function SalesPage() {
         </table>
       </div>
       {sales.map((sale) => (
-        <div key={`print-${sale.id}`} className={openId === sale.id ? "receipt-print" : "hidden"}>
+        <div key={`print-${sale.id}`} className={openId === sale.id ? `receipt-print size-${printSize}` : "hidden"}>
           <ReceiptDetail sale={sale} printOnly role={role} />
         </div>
       ))}
@@ -199,7 +200,14 @@ export default function SalesPage() {
   );
 }
 
-function ReceiptDetail({ sale, onPrint, printOnly = false, role }: { sale: Sale; onPrint?: () => void; printOnly?: boolean; role: "OWNER" | "STAFF" | null }) {
+function ReceiptDetail({ sale, onPrint, printOnly = false, role, printSize, onPrintSizeChange }: {
+  sale: Sale;
+  onPrint?: () => void;
+  printOnly?: boolean;
+  role: "OWNER" | "STAFF" | null;
+  printSize?: "58" | "80" | "a4";
+  onPrintSizeChange?: (size: "58" | "80" | "a4") => void;
+}) {
   const syncLabel = sale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : sale.syncStatus === "LOCAL_ONLY" || sale.syncStatus === "SYNCING" ? "รอซิงก์" : "ซิงก์แล้ว";
   return (
     <div className={`mx-auto max-w-md rounded-lg bg-white p-5 text-slate-950 ${printOnly ? "" : "border border-slate-200"}`}>
@@ -267,7 +275,21 @@ function ReceiptDetail({ sale, onPrint, printOnly = false, role }: { sale: Sale;
         )}
       </div>
       {!printOnly && (
-        <button className="btn btn-primary mt-5 w-full screen-only" onClick={onPrint} type="button">พิมพ์ใบเสร็จ</button>
+        <div className="mt-5 screen-only space-y-2">
+          {onPrintSizeChange && (
+            <div>
+              <div className="mb-1 text-sm font-black text-slate-600">ขนาดใบเสร็จ</div>
+              <div className="grid grid-cols-3 gap-2">
+                {(["58", "80", "a4"] as const).map((size) => (
+                  <button key={size} type="button" className={`btn min-h-10 py-1 text-sm ${printSize === size ? "btn-primary" : "btn-light"}`} onClick={() => onPrintSizeChange(size)}>
+                    {size === "a4" ? "A4" : `${size}mm`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <button className="btn btn-primary w-full" onClick={onPrint} type="button">พิมพ์ใบเสร็จ</button>
+        </div>
       )}
     </div>
   );

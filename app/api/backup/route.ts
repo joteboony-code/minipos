@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [categories, products, productBatches, sales, saleItems, saleItemBatches, stockMovements, creditPayments] = await Promise.all([
+    const [categories, products, productBatches, sales, saleItems, saleItemBatches, stockMovements, creditPayments, cashShifts] = await Promise.all([
       prisma.category.findMany({ orderBy: { name: "asc" } }),
       prisma.product.findMany({ orderBy: { name: "asc" } }),
       prisma.productBatch.findMany({ orderBy: [{ receivedAt: "desc" }, { id: "asc" }] }),
@@ -129,7 +129,8 @@ export async function GET(request: NextRequest) {
       prisma.saleItem.findMany({ orderBy: { id: "asc" } }),
       prisma.saleItemBatch.findMany({ orderBy: { id: "asc" } }),
       prisma.stockMovement.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.creditPayment.findMany({ orderBy: { createdAt: "desc" } })
+      prisma.creditPayment.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.cashShift.findMany({ orderBy: { openedAt: "desc" } })
     ]);
 
     return jsonResponse(`minimart-pos-backup-${stamp}.json`, {
@@ -141,7 +142,8 @@ export async function GET(request: NextRequest) {
       saleItems,
       saleItemBatches,
       stockMovements,
-      creditPayments
+      creditPayments,
+      cashShifts
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "ไม่สามารถส่งออกข้อมูลได้" }, { status: 403 });

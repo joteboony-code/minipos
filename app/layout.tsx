@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, Boxes, CreditCard, DatabaseBackup, FileText, History, Layers, Package, ShoppingCart } from "lucide-react";
+import { AlertTriangle, BarChart3, Boxes, Clock, CreditCard, DatabaseBackup, FileText, History, Layers, Package, ShoppingCart } from "lucide-react";
 import { getSession, roleLabel, type Role } from "@/lib/auth";
 import { LogoutButton } from "./logout-button";
 import "./globals.css";
@@ -19,6 +19,8 @@ const nav: Array<{ href: string; label: string; icon: typeof BarChart3; roles: R
   { href: "/stock", label: "สต๊อก", icon: Boxes, roles: ["OWNER"] },
   { href: "/sales", label: "ประวัติการขาย", icon: History, roles: ["OWNER", "STAFF"] },
   { href: "/credits", label: "เงินเชื่อ", icon: CreditCard, roles: ["OWNER"] },
+  { href: "/shifts", label: "กะขาย", icon: Clock, roles: ["OWNER"] },
+  { href: "/low-stock", label: "สินค้าใกล้หมด", icon: AlertTriangle, roles: ["OWNER"] },
   { href: "/reports", label: "รายงาน", icon: FileText, roles: ["OWNER"] },
   { href: "/backup", label: "สำรองข้อมูล", icon: DatabaseBackup, roles: ["OWNER"] }
 ];
@@ -29,6 +31,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="th">
+      <head>
+        <script dangerouslySetInnerHTML={{__html: `if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js')`}} />
+      </head>
       <body>
         {!session ? (
           children

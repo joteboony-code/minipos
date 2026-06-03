@@ -53,6 +53,8 @@ function sortProductSuggestions(products: Product[], keyword: string) {
     .slice(0, 8);
 }
 
+const quickCashAmounts = [10, 20, 50, 100, 500, 1000];
+
 export default function PosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const saleSubmittingRef = useRef(false);
@@ -353,6 +355,17 @@ export default function PosPage() {
     completeSale();
   }
 
+  function setQuickCashAmount(amount: number) {
+    setCashReceived(amount.toFixed(2).replace(/\.00$/, ""));
+  }
+
+  function quickCashButtonClass(amount: number) {
+    const selected = cashReceived.trim() !== "" && Number(cashReceived) === amount;
+    return `min-h-10 rounded-lg border px-2 py-1 text-sm font-black transition ${
+      selected ? "border-teal-600 bg-teal-600 text-white" : "border-slate-300 bg-white text-slate-900 hover:border-teal-500 hover:bg-teal-50"
+    }`;
+  }
+
   function renderPaymentPanel() {
     return (
       <div className="card p-3">
@@ -382,6 +395,19 @@ export default function PosPage() {
               min="0"
               step="0.01"
             />
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <div className="mb-1.5 text-sm font-black text-slate-700">รับเงินด่วน</div>
+              <div className="grid grid-cols-4 gap-1.5">
+                <button className={quickCashButtonClass(total)} disabled={busy || total <= 0} onClick={() => setQuickCashAmount(total)} type="button">
+                  พอดี
+                </button>
+                {quickCashAmounts.map((amount) => (
+                  <button key={amount} className={quickCashButtonClass(amount)} disabled={busy} onClick={() => setQuickCashAmount(amount)} type="button">
+                    {amount}
+                  </button>
+                ))}
+              </div>
+            </div>
             {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
             <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-3">
               <div className="font-black text-emerald-800">เงินทอน</div>

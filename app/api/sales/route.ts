@@ -71,8 +71,17 @@ async function createSale(body: unknown) {
   const checkout = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const items = normalizeItems(checkout.items);
   const paymentMethod = checkout.paymentMethod === "TRANSFER" ? "TRANSFER" : "CASH";
+  const idempotencyKey = typeof checkout.idempotencyKey === "string" && checkout.idempotencyKey.trim() ? checkout.idempotencyKey.trim() : null;
 
   return prisma.$transaction(async (tx) => {
+    if (idempotencyKey) {
+      const existing = await tx.sale.findUnique({
+        where: { idempotencyKey },
+        include: { items: true }
+      });
+      if (existing) return existing;
+    }
+
     const products = await tx.product.findMany({
       where: { id: { in: items.map((item) => item.productId) } }
     });
@@ -118,6 +127,7 @@ async function createSale(body: unknown) {
         paymentMethod,
         cashReceived,
         changeAmount: cashReceived ? cashReceived.sub(totalAmount) : null,
+        idempotencyKey,
         items: {
           create: lines.map((line) => ({
             productId: line.product.id,

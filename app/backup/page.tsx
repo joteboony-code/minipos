@@ -1,3 +1,5 @@
+import { LocalBackupButton } from "./local-backup-button";
+
 const exports = [
   {
     href: "/api/backup?type=full",
@@ -43,6 +45,14 @@ export default function BackupPage() {
             </a>
           </div>
         ))}
+      </div>
+
+      <div className="card p-5">
+        <h2 className="text-2xl font-black text-slate-900">สำรองข้อมูลในเครื่อง</h2>
+        <p className="mt-2 font-bold text-slate-600">ดาวน์โหลดข้อมูล IndexedDB ในเครื่อง เช่น local sales, sale items, stock movements, product cache และ sync queue</p>
+        <div className="mt-5 max-w-sm">
+          <LocalBackupButton />
+        </div>
       </div>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 font-bold text-amber-900">

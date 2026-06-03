@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { baht, thDate } from "@/lib/format";
+import { getLocalSaleBundles, type LocalSyncStatus } from "@/lib/local-pos-db";
 
 type SaleItem = {
   id: string;
@@ -25,6 +26,8 @@ type Sale = {
   itemCount: number;
   createdAt: string;
   items: SaleItem[];
+  syncStatus?: LocalSyncStatus;
+  isLocal?: boolean;
 };
 
 function csvValue(value: string | number | null) {
@@ -43,7 +46,38 @@ export default function SalesPage() {
 
   useEffect(() => {
     fetch("/api/auth/me").then((res) => res.ok ? res.json() : null).then((data) => setRole(data?.role ?? null));
-    fetch("/api/sales").then((res) => res.json()).then(setSales);
+    Promise.all([
+      fetch("/api/sales").then((res) => res.json()),
+      getLocalSaleBundles()
+    ]).then(([cloudSales, localBundles]) => {
+      const localSales: Sale[] = localBundles
+        .filter((bundle) => bundle.sale.syncStatus !== "SYNCED")
+        .map((bundle) => ({
+          id: bundle.sale.localId,
+          receiptNo: bundle.sale.receiptNo,
+          totalAmount: bundle.sale.totalAmount,
+          totalCost: bundle.sale.totalCost,
+          grossProfit: bundle.sale.grossProfit,
+          paymentMethod: bundle.sale.paymentMethod,
+          cashReceived: bundle.sale.cashReceived,
+          changeAmount: bundle.sale.changeAmount,
+          itemCount: bundle.items.reduce((sum, item) => sum + item.quantity, 0),
+          createdAt: bundle.sale.createdAt,
+          syncStatus: bundle.sale.syncStatus,
+          isLocal: true,
+          items: bundle.items.map((item) => ({
+            id: item.localId,
+            productNameSnapshot: item.productNameSnapshot,
+            barcodeSnapshot: item.barcodeSnapshot,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+            lineProfit: item.lineProfit
+          }))
+        }));
+      const allSales = [...localSales, ...(Array.isArray(cloudSales) ? cloudSales : [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setSales(allSales);
+    });
   }, []);
 
   function exportCsv() {
@@ -92,7 +126,10 @@ export default function SalesPage() {
             {sales.map((sale) => (
               <Fragment key={sale.id}>
                 <tr className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-black">{sale.receiptNo}</td>
+                  <td className="px-4 py-3 font-black">
+                    <div>{sale.receiptNo}</div>
+                    {sale.isLocal && <div className="mt-1 text-xs text-amber-700">{sale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : "รอซิงก์"}</div>}
+                  </td>
                   <td className="px-4 py-3">{thDate(sale.createdAt)}</td>
                   <td className="px-4 py-3">{paymentLabel(sale.paymentMethod)}</td>
                   <td className="px-4 py-3 text-center">{sale.itemCount}</td>
@@ -122,6 +159,7 @@ export default function SalesPage() {
 }
 
 function ReceiptDetail({ sale, onPrint, printOnly = false }: { sale: Sale; onPrint?: () => void; printOnly?: boolean }) {
+  const syncLabel = sale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : sale.syncStatus === "LOCAL_ONLY" || sale.syncStatus === "SYNCING" ? "รอซิงก์" : "ซิงก์แล้ว";
   return (
     <div className={`mx-auto max-w-md rounded-lg bg-white p-5 text-slate-950 ${printOnly ? "" : "border border-slate-200"}`}>
       <div className="text-center">
@@ -131,6 +169,7 @@ function ReceiptDetail({ sale, onPrint, printOnly = false }: { sale: Sale; onPri
       <div className="mt-4 space-y-1 text-sm">
         <div className="flex justify-between gap-3"><span>เลขที่บิล</span><span className="font-bold">{sale.receiptNo}</span></div>
         <div className="flex justify-between gap-3"><span>วันที่/เวลา</span><span>{thDate(sale.createdAt)}</span></div>
+        {sale.isLocal && <div className="flex justify-between gap-3"><span>สถานะซิงก์</span><span className="font-bold">{syncLabel}</span></div>}
       </div>
       <div className="mt-4 border-y border-dashed border-slate-300 py-2">
         {sale.items.map((item) => (

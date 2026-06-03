@@ -3,26 +3,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { baht } from "@/lib/format";
+import {
+  getAllLocalProducts,
+  getPendingQueueItems,
+  getPendingSyncCount,
+  getSyncMeta,
+  markQueueItemSyncing,
+  markSaleSyncFailed,
+  markSaleSynced,
+  putLocalProducts,
+  saveLocalSale,
+  type LocalProduct,
+  type LocalSyncStatus
+} from "@/lib/local-pos-db";
 
-type Product = {
-  id: string;
-  barcode: string;
-  name: string;
-  salePrice: number;
-  costPrice: number;
-  stockQty: number;
-  unit: string;
-  isActive: boolean;
-};
+type Product = LocalProduct;
 
 type CartItem = Product & { quantity: number };
 type PromptPayState = { configured: boolean; qrDataUrl?: string; message?: string };
 type SaleSuccess = {
+  localId?: string;
   receiptNo: string;
   totalAmount: number;
   paymentMethod: "CASH" | "TRANSFER";
   cashReceived: number | null;
   changeAmount: number | null;
+  syncStatus: LocalSyncStatus;
+  cloudReceiptNo?: string;
 };
 
 function barcodeSuggestionRank(product: Product, keyword: string) {
@@ -50,6 +57,7 @@ export default function PosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const saleSubmittingRef = useRef(false);
   const [query, setQuery] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quickSaleProducts, setQuickSaleProducts] = useState<Product[]>([]);
   const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
@@ -61,23 +69,79 @@ export default function PosPage() {
   const [promptPay, setPromptPay] = useState<PromptPayState | null>(null);
   const [successSale, setSuccessSale] = useState<SaleSuccess | null>(null);
   const [busy, setBusy] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [cacheStatus, setCacheStatus] = useState("กำลังโหลดข้อมูลสินค้าในเครื่อง");
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState("");
+  const [syncBusy, setSyncBusy] = useState(false);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const loadQuickSaleProducts = useCallback(() => {
-    fetch("/api/products?quickSale=true")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setQuickSaleProducts(data);
-      })
-      .catch(() => setMessage("โหลดปุ่มขายด่วนไม่สำเร็จ"));
+  const refreshSyncStatus = useCallback(() => {
+    getPendingSyncCount().then(setPendingSyncCount).catch(() => undefined);
+    getSyncMeta("lastSyncAt").then(setLastSyncAt).catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    loadQuickSaleProducts();
-  }, [loadQuickSaleProducts]);
+    setQuickSaleProducts(products.filter((product) => product.isActive && product.isQuickSale));
+  }, [products]);
+
+  const loadProductCache = useCallback(async () => {
+    const cachedProducts = await getAllLocalProducts();
+    const hasCache = cachedProducts.length > 0;
+    if (hasCache) {
+      setProducts(cachedProducts);
+      setCacheStatus("โหลดข้อมูลสินค้าในเครื่องแล้ว");
+    }
+
+    if (!navigator.onLine) {
+      setOnline(false);
+      setCacheStatus(hasCache ? "ใช้ข้อมูลในเครื่อง" : "ยังไม่มีข้อมูลสินค้าในเครื่อง กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดข้อมูลครั้งแรก");
+      return;
+    }
+
+    try {
+      setCacheStatus("กำลังอัปเดตข้อมูลจาก Cloud");
+      const res = await fetch("/api/products");
+      const cloudProducts = await res.json();
+      if (!res.ok || !Array.isArray(cloudProducts)) throw new Error("โหลดสินค้าไม่สำเร็จ");
+      const pendingCount = await getPendingSyncCount();
+      const localById = new Map(cachedProducts.map((product) => [product.id, product]));
+      const merged = (cloudProducts as Product[]).map((product) => {
+        const local = localById.get(product.id);
+        return pendingCount > 0 && local ? { ...product, stockQty: local.stockQty } : product;
+      });
+      await putLocalProducts(merged);
+      setProducts(merged);
+      setCacheStatus("โหลดข้อมูลสินค้าในเครื่องแล้ว");
+    } catch {
+      setCacheStatus(hasCache ? "ใช้ข้อมูลในเครื่อง" : "ยังไม่มีข้อมูลสินค้าในเครื่อง กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดข้อมูลครั้งแรก");
+    }
+  }, []);
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    loadProductCache().catch(() => setCacheStatus("ใช้ข้อมูลในเครื่อง"));
+    refreshSyncStatus();
+    const onOnline = () => {
+      setOnline(true);
+      loadProductCache().catch(() => undefined);
+      syncPendingSales();
+    };
+    const onOffline = () => {
+      setOnline(false);
+      setCacheStatus("ใช้ข้อมูลในเครื่อง");
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadProductCache, refreshSyncStatus]);
 
   const total = useMemo(() => cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0), [cart]);
   const cashAmount = Number(cashReceived || 0);
@@ -119,33 +183,18 @@ export default function PosPage() {
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setPreviewLoading(true);
-      fetch(`/api/products?search=${encodeURIComponent(keyword)}`, { signal: controller.signal })
-        .then((res) => res.json())
-        .then((data) => {
-          if (Array.isArray(data)) {
-            setPreviewProducts(sortProductSuggestions(data as Product[], keyword));
-          } else {
-            setPreviewProducts([]);
-          }
-          setPreviewSearchedQuery(keyword);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            setPreviewProducts([]);
-            setPreviewSearchedQuery(keyword);
-          }
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setPreviewLoading(false);
-        });
+      const text = keyword.toLowerCase();
+      const matches = products.filter((product) => product.barcode.includes(keyword) || product.name.toLowerCase().includes(text));
+      setPreviewProducts(sortProductSuggestions(matches, keyword));
+      setPreviewSearchedQuery(keyword);
+      setPreviewLoading(false);
     }, 250);
 
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [products, query]);
 
   function addProduct(product: Product) {
     if (!product.isActive) return setMessage("สินค้าถูกปิดการขาย");
@@ -162,6 +211,34 @@ export default function PosPage() {
         : [...items, { ...product, quantity: 1 }]
     );
     setMessage("");
+  }
+
+  async function syncPendingSales() {
+    if (!navigator.onLine || syncBusy) return;
+    setSyncBusy(true);
+    try {
+      const queueItems = await getPendingQueueItems();
+      for (const item of queueItems) {
+        try {
+          await markQueueItemSyncing(item);
+          const res = await fetch("/api/sales", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(item.payload)
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error ?? "ซิงก์ Cloud ไม่สำเร็จ");
+          await markSaleSynced(item.id, data.id, data.receiptNo);
+          setSuccessSale((current) => current && item.id === current.localId ? { ...current, syncStatus: "SYNCED", cloudReceiptNo: data.receiptNo } : current);
+        } catch (error) {
+          await markSaleSyncFailed(item.id, error instanceof Error ? error.message : "ซิงก์ Cloud ไม่สำเร็จ");
+          setSuccessSale((current) => current && item.id === current.localId ? { ...current, syncStatus: "FAILED" } : current);
+        }
+      }
+    } finally {
+      setSyncBusy(false);
+      refreshSyncStatus();
+    }
   }
 
   function addPreviewProduct(product: Product) {
@@ -189,15 +266,9 @@ export default function PosPage() {
       return;
     }
     const isBarcode = /^\d+$/.test(keyword);
-    const res = await fetch(`/api/products?${isBarcode ? "barcode" : "search"}=${encodeURIComponent(keyword)}`);
-    const data = await res.json();
-    if (!res.ok || !Array.isArray(data)) {
-      setMessage(data.error ?? "ค้นหาสินค้าไม่สำเร็จ");
-      inputRef.current?.focus();
-      return;
-    }
-    const products = data as Product[];
-    const sortedProducts = sortProductSuggestions(products, keyword);
+    const text = keyword.toLowerCase();
+    const localMatches = products.filter((product) => (isBarcode ? product.barcode === keyword || product.barcode.includes(keyword) : product.name.toLowerCase().includes(text) || product.barcode.includes(keyword)));
+    const sortedProducts = sortProductSuggestions(localMatches, keyword);
     const exactProduct = sortedProducts.find((product) => product.barcode === keyword);
     const productToAdd = exactProduct ?? (sortedProducts.length === 1 ? sortedProducts[0] : null);
     if (sortedProducts.length === 0) {
@@ -236,30 +307,36 @@ export default function PosPage() {
     saleSubmittingRef.current = true;
     setBusy(true);
     try {
-      const res = await fetch("/api/sales", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentMethod,
-          cashReceived: paymentMethod === "CASH" ? cashReceived : undefined,
-          items: cart.map((item) => ({ productId: item.id, quantity: item.quantity }))
-        })
+      const localProducts = await getAllLocalProducts();
+      const localProductMap = new Map(localProducts.map((product) => [product.id, product]));
+      const localCart = cart.map((item) => ({ ...(localProductMap.get(item.id) ?? item), quantity: item.quantity }));
+      for (const item of localCart) {
+        if (item.stockQty < item.quantity) throw new Error(`${item.name} มีสต็อกในเครื่องไม่พอ`);
+      }
+      const localSaved = await saveLocalSale({
+        cart: localCart,
+        paymentMethod,
+        cashReceived: paymentMethod === "CASH" ? cashAmount : null,
+        changeAmount: paymentMethod === "CASH" ? cashAmount - total : null
       });
-      const data = await res.json();
-      if (!res.ok) return setMessage(data.error ?? "เกิดข้อผิดพลาดฐานข้อมูล");
+      const updatedProducts = await getAllLocalProducts();
+      setProducts(updatedProducts);
       setSuccessSale({
-        receiptNo: data.receiptNo,
-        totalAmount: data.totalAmount,
-        paymentMethod: data.paymentMethod,
-        cashReceived: data.cashReceived,
-        changeAmount: data.changeAmount
+        receiptNo: localSaved.sale.receiptNo,
+        localId: localSaved.sale.localId,
+        totalAmount: localSaved.sale.totalAmount,
+        paymentMethod: localSaved.sale.paymentMethod,
+        cashReceived: localSaved.sale.cashReceived,
+        changeAmount: localSaved.sale.changeAmount,
+        syncStatus: "LOCAL_ONLY"
       });
       setCart([]);
       setCashReceived("");
-      setMessage(`บันทึกการขายสำเร็จ ${data.receiptNo}`);
-      loadQuickSaleProducts();
-    } catch {
-      setMessage("เชื่อมต่อระบบขายไม่สำเร็จ");
+      setMessage(`บันทึกในเครื่องแล้ว ${localSaved.sale.receiptNo}`);
+      refreshSyncStatus();
+      if (navigator.onLine) window.setTimeout(() => syncPendingSales(), 0);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "บันทึกในเครื่องไม่สำเร็จ");
     } finally {
       saleSubmittingRef.current = false;
       setBusy(false);
@@ -409,6 +486,15 @@ export default function PosPage() {
         <div>
           <h1 className="text-2xl font-black">ขายสินค้า</h1>
           <p className="mt-1 font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black">
+            <span className={`rounded-md px-2 py-1 ${online ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{online ? "ออนไลน์" : "ออฟไลน์"}</span>
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">รอซิงก์ {pendingSyncCount} รายการ</span>
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">{cacheStatus}</span>
+            {lastSyncAt && <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">ซิงก์ล่าสุด: {new Date(lastSyncAt).toLocaleString("th-TH")}</span>}
+            <button className="rounded-md bg-teal-600 px-3 py-1 text-white disabled:opacity-50" disabled={!online || syncBusy} onClick={syncPendingSales} type="button">
+              {syncBusy ? "กำลังซิงก์ Cloud" : "ซิงก์ข้อมูลตอนนี้"}
+            </button>
+          </div>
         </div>
         <form onSubmit={handleSearch} className="card p-3">
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -516,7 +602,7 @@ export default function PosPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4">
           <div className="card w-full max-w-sm p-6 text-center shadow-2xl">
             <LoaderCircle className="mx-auto animate-spin text-teal-700" size={56} strokeWidth={2.6} />
-            <div className="mt-4 text-2xl font-black text-slate-950">กำลังบันทึกการขาย...</div>
+            <div className="mt-4 text-2xl font-black text-slate-950">กำลังบันทึกในเครื่อง...</div>
             <div className="mt-2 font-bold text-slate-600">กรุณารอสักครู่ ห้ามปิดหน้านี้</div>
           </div>
         </div>
@@ -527,7 +613,9 @@ export default function PosPage() {
             <div className="text-3xl font-black text-teal-700">บันทึกการขายสำเร็จ</div>
             <div className="mt-5 space-y-3 text-xl font-bold">
               <div className="flex justify-between gap-4"><span>เลขที่บิล</span><span className="text-right">{successSale.receiptNo}</span></div>
+              {successSale.cloudReceiptNo && <div className="flex justify-between gap-4"><span>เลขที่ Cloud</span><span className="text-right">{successSale.cloudReceiptNo}</span></div>}
               <div className="flex justify-between gap-4"><span>ยอดรวม</span><span>{baht(successSale.totalAmount)}</span></div>
+              <div className="flex justify-between gap-4"><span>สถานะซิงก์</span><span>{successSale.syncStatus === "SYNCED" ? "ซิงก์แล้ว" : successSale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : "รอซิงก์ Cloud"}</span></div>
               {successSale.paymentMethod === "CASH" && (
                 <>
                   <div className="flex justify-between gap-4"><span>รับเงิน</span><span>{baht(successSale.cashReceived ?? 0)}</span></div>

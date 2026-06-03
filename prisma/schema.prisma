@@ -57,6 +57,7 @@ model Sale {
   paymentMethod PaymentMethod
   cashReceived  Decimal?      @db.Decimal(10, 2)
   changeAmount  Decimal?      @db.Decimal(10, 2)
+  idempotencyKey String?       @unique
   items         SaleItem[]
   createdAt     DateTime      @default(now())
 

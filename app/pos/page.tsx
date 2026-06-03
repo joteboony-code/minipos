@@ -85,6 +85,7 @@ export default function PosPage() {
   const [pendingSyncError, setPendingSyncError] = useState("");
   const [lastSyncAt, setLastSyncAt] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
+  const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -314,15 +315,43 @@ export default function PosPage() {
   }
 
   function updateQty(id: string, delta: number) {
+    setQtyDraft((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     setCart((items) =>
-      items
-        .map((item) => {
-          if (item.id !== id) return item;
-          const next = item.quantity + delta;
-          if (next > item.stockQty) setMessage("สต็อกไม่พอสำหรับสินค้านี้");
-          return { ...item, quantity: Math.min(Math.max(next, 1), item.stockQty) };
-        })
+      items.map((item) => {
+        if (item.id !== id) return item;
+        const next = item.quantity + delta;
+        if (next > item.stockQty) setMessage("สต็อกไม่พอสำหรับสินค้านี้");
+        return { ...item, quantity: Math.min(Math.max(next, 1), item.stockQty) };
+      })
     );
+  }
+
+  function commitQty(item: CartItem) {
+    const raw = qtyDraft[item.id];
+    if (raw === undefined) return;
+    const parsed = parseInt(raw, 10);
+    if (!Number.isInteger(parsed) || isNaN(parsed) || parsed < 1) {
+      setQtyDraft((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      return;
+    }
+    if (parsed > item.stockQty) {
+      setMessage(`สต๊อกคงเหลือไม่พอ (มี ${item.stockQty} ${item.unit})`);
+    }
+    const clamped = Math.min(parsed, item.stockQty);
+    setCart((items) => items.map((i) => (i.id === item.id ? { ...i, quantity: clamped } : i)));
+    setQtyDraft((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
   }
 
   async function completeSale() {
@@ -364,6 +393,7 @@ export default function PosPage() {
         syncStatus: "LOCAL_ONLY"
       });
       setCart([]);
+      setQtyDraft({});
       setCashReceived("");
       setCreditCustomerName("");
       setCreditCustomerPhone("");
@@ -486,6 +516,7 @@ export default function PosPage() {
           className="btn btn-light mt-2 w-full py-2 text-base"
           onClick={() => {
             setCart([]);
+            setQtyDraft({});
             setMessage("");
           }}
           disabled={busy}
@@ -622,14 +653,28 @@ export default function PosPage() {
                         <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
                           <Minus size={16} />
                         </button>
-                        <div className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-slate-100 px-2 text-sm font-black">{item.quantity}</div>
+                        <input
+                          className="h-8 w-14 rounded-lg bg-slate-100 text-center text-sm font-black focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          disabled={busy}
+                          value={qtyDraft[item.id] !== undefined ? qtyDraft[item.id] : String(item.quantity)}
+                          onChange={(e) => setQtyDraft((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                          onBlur={() => commitQty(item)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+                          title={`จำนวน (สูงสุด ${item.stockQty})`}
+                        />
                         <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
                           <Plus size={16} />
                         </button>
                         <button
                           className="btn btn-danger touch-icon-button"
                           disabled={busy}
-                          onClick={() => setCart((items) => items.filter((entry) => entry.id !== item.id))}
+                          onClick={() => {
+                            setQtyDraft((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
+                            setCart((items) => items.filter((entry) => entry.id !== item.id));
+                          }}
                           type="button"
                           title="ลบสินค้า"
                         >

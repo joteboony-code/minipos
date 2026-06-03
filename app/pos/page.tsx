@@ -7,6 +7,7 @@ import {
   getAllLocalProducts,
   getPendingQueueItems,
   getPendingSyncCount,
+  getPendingSyncSummary,
   getSyncMeta,
   markQueueItemSyncing,
   markSaleSyncFailed,
@@ -81,6 +82,7 @@ export default function PosPage() {
   const [online, setOnline] = useState(true);
   const [cacheStatus, setCacheStatus] = useState("กำลังโหลดข้อมูลสินค้าในเครื่อง");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [pendingSyncError, setPendingSyncError] = useState("");
   const [lastSyncAt, setLastSyncAt] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
 
@@ -89,7 +91,14 @@ export default function PosPage() {
   }, []);
 
   const refreshSyncStatus = useCallback(() => {
-    getPendingSyncCount().then(setPendingSyncCount).catch(() => undefined);
+    getPendingSyncSummary()
+      .then((summary) => {
+        setPendingSyncCount(summary.count);
+        setPendingSyncError(summary.latestError);
+      })
+      .catch(() => {
+        getPendingSyncCount().then(setPendingSyncCount).catch(() => undefined);
+      });
     getSyncMeta("lastSyncAt").then(setLastSyncAt).catch(() => undefined);
   }, []);
 
@@ -246,7 +255,9 @@ export default function PosPage() {
           await markSaleSynced(item.id, data.id, data.receiptNo);
           setSuccessSale((current) => current && item.id === current.localId ? { ...current, syncStatus: "SYNCED", cloudReceiptNo: data.receiptNo } : current);
         } catch (error) {
-          await markSaleSyncFailed(item.id, error instanceof Error ? error.message : "ซิงก์ Cloud ไม่สำเร็จ");
+          const errorMessage = error instanceof Error ? error.message : "ซิงก์ Cloud ไม่สำเร็จ";
+          await markSaleSyncFailed(item.id, errorMessage);
+          setMessage(`ซิงก์ Cloud ไม่สำเร็จ: ${errorMessage}`);
           setSuccessSale((current) => current && item.id === current.localId ? { ...current, syncStatus: "FAILED" } : current);
         }
       }
@@ -559,6 +570,7 @@ export default function PosPage() {
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black">
             <span className={`rounded-md px-2 py-1 ${online ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{online ? "ออนไลน์" : "ออฟไลน์"}</span>
             <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">รอซิงก์ {pendingSyncCount} รายการ</span>
+            {pendingSyncError && <span className="rounded-md bg-red-50 px-2 py-1 text-red-700">ซิงก์ล่าสุด: {pendingSyncError}</span>}
             <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">{cacheStatus}</span>
             {lastSyncAt && <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">ซิงก์ล่าสุด: {new Date(lastSyncAt).toLocaleString("th-TH")}</span>}
             <button className="rounded-md bg-teal-600 px-3 py-1 text-white disabled:opacity-50" disabled={!online || syncBusy} onClick={syncPendingSales} type="button">

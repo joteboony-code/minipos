@@ -149,6 +149,20 @@ export async function getPendingSyncCount() {
   return rows.filter((item) => item.status !== "SYNCED").length;
 }
 
+export async function getPendingSyncSummary() {
+  const store = await readonlyStore("syncQueue");
+  const rows = await requestToPromise<SyncQueueItem[]>(store.getAll());
+  const pending = rows
+    .filter((item) => item.status !== "SYNCED")
+    .sort((a, b) => (b.lastAttemptAt ?? b.createdAt).localeCompare(a.lastAttemptAt ?? a.createdAt));
+  const latestFailed = pending.find((item) => item.error);
+  return {
+    count: pending.length,
+    latestError: latestFailed?.error ?? "",
+    latestStatus: pending[0]?.status ?? ""
+  };
+}
+
 export async function getSyncMeta(key: string) {
   const store = await readonlyStore("syncMeta");
   const result = await requestToPromise<{ key: string; value: string } | undefined>(store.get(key));

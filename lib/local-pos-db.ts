@@ -83,6 +83,7 @@ export type LocalSaleBundle = {
 
 const DB_NAME = "minimart-pos-local";
 const DB_VERSION = 1;
+const STALE_SYNCING_MS = 60_000;
 
 const stores = ["products", "categories", "localSales", "localSaleItems", "localStockMovements", "syncQueue", "syncMeta"] as const;
 
@@ -335,7 +336,13 @@ export async function getLocalSaleBundles() {
 export async function getPendingQueueItems() {
   const store = await readonlyStore("syncQueue");
   const rows = await requestToPromise<SyncQueueItem[]>(store.getAll());
-  return rows.filter((item) => item.status === "LOCAL_ONLY" || item.status === "FAILED");
+  const now = Date.now();
+  return rows.filter((item) => {
+    if (item.status === "LOCAL_ONLY" || item.status === "FAILED") return true;
+    if (item.status !== "SYNCING") return false;
+    const lastAttemptAt = item.lastAttemptAt ? Date.parse(item.lastAttemptAt) : 0;
+    return !Number.isFinite(lastAttemptAt) || now - lastAttemptAt > STALE_SYNCING_MS;
+  });
 }
 
 export async function markQueueItemSyncing(item: SyncQueueItem) {

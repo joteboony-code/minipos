@@ -13,8 +13,8 @@ export function LogoutButton() {
   }
 
   return (
-    <button className="btn btn-light w-full" onClick={logout} type="button">
-      <LogOut size={20} />
+    <button className="btn btn-light w-full text-lg" onClick={logout} type="button">
+      <LogOut size={22} />
       ออกจากระบบ
     </button>
   );

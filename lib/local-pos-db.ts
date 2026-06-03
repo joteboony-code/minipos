@@ -164,55 +164,19 @@ export async function saveLocalSale(input: {
   paymentMethod: "CASH" | "TRANSFER";
   cashReceived: number | null;
   changeAmount: number | null;
-}) {
+}): Promise<{ sale: LocalSale; items: LocalSaleItem[] }> {
   const db = await openLocalPosDb();
   const now = new Date().toISOString();
   const localId = crypto.randomUUID();
   const receiptNo = localReceiptNo();
-  const items: LocalSaleItem[] = input.cart.map((item) => {
-    const unitPrice = Number(item.salePrice);
-    const costPrice = Number(item.costPrice ?? 0);
-    const lineTotal = unitPrice * item.quantity;
-    const lineProfit = lineTotal - costPrice * item.quantity;
-    return {
-      localId: crypto.randomUUID(),
-      localSaleId: localId,
-      productId: item.id,
-      productNameSnapshot: item.name,
-      barcodeSnapshot: item.barcode,
-      quantity: item.quantity,
-      unitPrice,
-      costPrice,
-      lineTotal,
-      lineProfit
-    };
-  });
-  const totalAmount = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const totalCost = items.reduce((sum, item) => sum + item.costPrice * item.quantity, 0);
-  const sale: LocalSale = {
-    localId,
-    receiptNo,
-    totalAmount,
-    totalCost,
-    grossProfit: totalAmount - totalCost,
-    paymentMethod: input.paymentMethod,
-    cashReceived: input.cashReceived,
-    changeAmount: input.changeAmount,
-    createdAt: now,
-    syncStatus: "LOCAL_ONLY"
-  };
-  const movements: LocalStockMovement[] = input.cart.map((item) => ({
-    localId: crypto.randomUUID(),
-    productId: item.id,
-    type: "SALE",
-    quantityChange: -item.quantity,
-    beforeQty: item.stockQty,
-    afterQty: item.stockQty - item.quantity,
-    note: receiptNo,
-    createdAt: now,
-    syncStatus: "LOCAL_ONLY"
-  }));
-  if (movements.some((movement) => movement.afterQty < 0)) throw new Error("สต็อกในเครื่องไม่พอ");
+  const cartByProduct = new Map<string, (LocalProduct & { quantity: number })>();
+  for (const item of input.cart) {
+    const existing = cartByProduct.get(item.id);
+    cartByProduct.set(item.id, existing ? { ...existing, quantity: existing.quantity + item.quantity } : { ...item });
+  }
+  const cartLines = Array.from(cartByProduct.values());
+  let sale: LocalSale | null = null;
+  let items: LocalSaleItem[] = [];
 
   const queueItem: SyncQueueItem = {
     id: localId,
@@ -221,7 +185,7 @@ export async function saveLocalSale(input: {
       idempotencyKey: localId,
       paymentMethod: input.paymentMethod,
       cashReceived: input.cashReceived,
-      items: input.cart.map((item) => ({ productId: item.id, quantity: item.quantity }))
+      items: cartLines.map((item) => ({ productId: item.id, quantity: item.quantity }))
     },
     status: "LOCAL_ONLY",
     createdAt: now,
@@ -231,19 +195,112 @@ export async function saveLocalSale(input: {
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(["products", "localSales", "localSaleItems", "localStockMovements", "syncQueue"], "readwrite");
     const productStore = tx.objectStore("products");
-    tx.objectStore("localSales").put(sale);
-    for (const item of items) tx.objectStore("localSaleItems").put(item);
-    for (const movement of movements) {
-      tx.objectStore("localStockMovements").put(movement);
-      const product = input.cart.find((entry) => entry.id === movement.productId);
-      if (product) productStore.put({ ...product, stockQty: movement.afterQty });
+    const storedProducts = new Map<string, LocalProduct>();
+    let remainingReads = cartLines.length;
+    let settled = false;
+
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      try {
+        tx.abort();
+      } catch {
+        // Transaction may already be closing.
+      }
+      reject(error);
+    };
+
+    const writeSale = () => {
+      items = cartLines.map((line) => {
+        const product = storedProducts.get(line.id) ?? line;
+        const unitPrice = Number(product.salePrice);
+        const costPrice = Number(product.costPrice ?? 0);
+        const lineTotal = unitPrice * line.quantity;
+        const lineProfit = lineTotal - costPrice * line.quantity;
+        return {
+          localId: crypto.randomUUID(),
+          localSaleId: localId,
+          productId: product.id,
+          productNameSnapshot: product.name,
+          barcodeSnapshot: product.barcode,
+          quantity: line.quantity,
+          unitPrice,
+          costPrice,
+          lineTotal,
+          lineProfit
+        };
+      });
+      const totalAmount = items.reduce((sum, item) => sum + item.lineTotal, 0);
+      const totalCost = items.reduce((sum, item) => sum + item.costPrice * item.quantity, 0);
+      sale = {
+        localId,
+        receiptNo,
+        totalAmount,
+        totalCost,
+        grossProfit: totalAmount - totalCost,
+        paymentMethod: input.paymentMethod,
+        cashReceived: input.cashReceived,
+        changeAmount: input.changeAmount,
+        createdAt: now,
+        syncStatus: "LOCAL_ONLY"
+      };
+
+      tx.objectStore("localSales").put(sale);
+      for (const item of items) tx.objectStore("localSaleItems").put(item);
+      for (const line of cartLines) {
+        const product = storedProducts.get(line.id);
+        if (!product) {
+          fail(new Error("ไม่พบสินค้าในเครื่อง"));
+          return;
+        }
+        const afterQty = product.stockQty - line.quantity;
+        tx.objectStore("localStockMovements").put({
+          localId: crypto.randomUUID(),
+          productId: product.id,
+          type: "SALE",
+          quantityChange: -line.quantity,
+          beforeQty: product.stockQty,
+          afterQty,
+          note: receiptNo,
+          createdAt: now,
+          syncStatus: "LOCAL_ONLY"
+        } satisfies LocalStockMovement);
+        productStore.put({ ...product, stockQty: afterQty });
+      }
+      tx.objectStore("syncQueue").put(queueItem);
+    };
+
+    for (const line of cartLines) {
+      const request = productStore.get(line.id);
+      request.onsuccess = () => {
+        if (settled) return;
+        const product = request.result as LocalProduct | undefined;
+        if (!product) return fail(new Error("ไม่พบสินค้าในเครื่อง"));
+        if (!product.isActive) return fail(new Error("สินค้าถูกปิดการขาย"));
+        if (product.stockQty < line.quantity) return fail(new Error(`${product.name} มีสต็อกในเครื่องไม่พอ`));
+        storedProducts.set(product.id, product);
+        remainingReads -= 1;
+        if (remainingReads === 0) writeSale();
+      };
+      request.onerror = () => fail(request.error ?? new Error("อ่านข้อมูลสินค้าในเครื่องไม่สำเร็จ"));
     }
-    tx.objectStore("syncQueue").put(queueItem);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    tx.onerror = () => fail(tx.error ?? new Error("บันทึกในเครื่องไม่สำเร็จ"));
+    tx.onabort = () => {
+      if (!settled) {
+        settled = true;
+        reject(tx.error ?? new Error("บันทึกในเครื่องไม่สำเร็จ"));
+      }
+    };
   });
 
-  return { sale, items };
+  if (!sale) throw new Error("บันทึกในเครื่องไม่สำเร็จ");
+  return { sale: sale as LocalSale, items };
 }
 
 export async function getLocalSaleBundles() {
@@ -258,7 +315,7 @@ export async function getLocalSaleBundles() {
 export async function getPendingQueueItems() {
   const store = await readonlyStore("syncQueue");
   const rows = await requestToPromise<SyncQueueItem[]>(store.getAll());
-  return rows.filter((item) => item.status !== "SYNCED");
+  return rows.filter((item) => item.status === "LOCAL_ONLY" || item.status === "FAILED");
 }
 
 export async function markQueueItemSyncing(item: SyncQueueItem) {

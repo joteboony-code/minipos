@@ -56,6 +56,7 @@ function sortProductSuggestions(products: Product[], keyword: string) {
 export default function PosPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const saleSubmittingRef = useRef(false);
+  const syncInFlightRef = useRef(false);
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -214,7 +215,8 @@ export default function PosPage() {
   }
 
   async function syncPendingSales() {
-    if (!navigator.onLine || syncBusy) return;
+    if (!navigator.onLine || syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
     setSyncBusy(true);
     try {
       const queueItems = await getPendingQueueItems();
@@ -236,6 +238,7 @@ export default function PosPage() {
         }
       }
     } finally {
+      syncInFlightRef.current = false;
       setSyncBusy(false);
       refreshSyncStatus();
     }

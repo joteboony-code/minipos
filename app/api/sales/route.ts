@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type CheckoutItem = { productId: string; quantity: number };
+type PaymentMethodInput = "CASH" | "TRANSFER" | "CREDIT";
 
 const receiptDateFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Bangkok",
@@ -67,11 +68,27 @@ function parseCashReceived(value: unknown) {
   return cash.toDecimalPlaces(2);
 }
 
+function parsePaymentMethod(value: unknown): PaymentMethodInput {
+  if (value === "TRANSFER" || value === "CREDIT") return value;
+  return "CASH";
+}
+
+function optionalText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 async function createSale(body: unknown) {
   const checkout = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const items = normalizeItems(checkout.items);
-  const paymentMethod = checkout.paymentMethod === "TRANSFER" ? "TRANSFER" : "CASH";
+  const paymentMethod = parsePaymentMethod(checkout.paymentMethod);
   const idempotencyKey = typeof checkout.idempotencyKey === "string" && checkout.idempotencyKey.trim() ? checkout.idempotencyKey.trim() : null;
+  const creditCustomerName = optionalText(checkout.creditCustomerName);
+  const creditCustomerPhone = optionalText(checkout.creditCustomerPhone);
+  const creditNote = optionalText(checkout.creditNote);
+
+  if (paymentMethod === "CREDIT" && !creditCustomerName) {
+    throw new Error("กรุณาใส่ชื่อลูกค้าเงินเชื่อ");
+  }
 
   return prisma.$transaction(async (tx) => {
     if (idempotencyKey) {
@@ -112,6 +129,7 @@ async function createSale(body: unknown) {
     const totalCost = lines.reduce((sum, line) => sum.add(line.costPrice.mul(line.quantity)), new Prisma.Decimal(0));
     const grossProfit = totalAmount.sub(totalCost);
     const cashReceived = paymentMethod === "CASH" ? parseCashReceived(checkout.cashReceived) : null;
+    const changeAmount = paymentMethod === "CASH" && cashReceived ? cashReceived.sub(totalAmount) : paymentMethod === "CREDIT" ? new Prisma.Decimal(0) : null;
 
     if (cashReceived && cashReceived.lessThan(totalAmount)) {
       throw new Error("เงินสดที่รับมาน้อยกว่ายอดรวม");
@@ -126,7 +144,13 @@ async function createSale(body: unknown) {
         grossProfit,
         paymentMethod,
         cashReceived,
-        changeAmount: cashReceived ? cashReceived.sub(totalAmount) : null,
+        changeAmount,
+        creditCustomerName: paymentMethod === "CREDIT" ? creditCustomerName : null,
+        creditCustomerPhone: paymentMethod === "CREDIT" ? creditCustomerPhone : null,
+        creditNote: paymentMethod === "CREDIT" ? creditNote : null,
+        creditDueAmount: paymentMethod === "CREDIT" ? totalAmount : new Prisma.Decimal(0),
+        creditPaidAmount: new Prisma.Decimal(0),
+        creditStatus: paymentMethod === "CREDIT" ? "UNPAID" : null,
         idempotencyKey,
         items: {
           create: lines.map((line) => ({
@@ -180,7 +204,7 @@ export async function GET() {
   const session = await getSession();
   const canSeeProfit = session?.role === "OWNER";
   const sales = await prisma.sale.findMany({
-    include: { items: true },
+    include: { items: true, creditPayments: { orderBy: { createdAt: "desc" } } },
     orderBy: { createdAt: "desc" },
     take: 100
   });
@@ -193,6 +217,12 @@ export async function GET() {
       grossProfit: canSeeProfit ? Number(sale.grossProfit) : null,
       cashReceived: sale.cashReceived === null ? null : Number(sale.cashReceived),
       changeAmount: sale.changeAmount === null ? null : Number(sale.changeAmount),
+      creditDueAmount: sale.creditDueAmount === null ? null : Number(sale.creditDueAmount),
+      creditPaidAmount: sale.creditPaidAmount === null ? null : Number(sale.creditPaidAmount),
+      creditPayments: sale.creditPayments.map((payment) => ({
+        ...payment,
+        amount: Number(payment.amount)
+      })),
       itemCount: sale.items.reduce((sum, item) => sum + item.quantity, 0),
       items: sale.items.map((item) => ({
         ...item,
@@ -231,7 +261,9 @@ export async function POST(request: NextRequest) {
         totalCost: canSeeProfit ? Number(sale.totalCost) : null,
         grossProfit: canSeeProfit ? Number(sale.grossProfit) : null,
         cashReceived: sale.cashReceived === null ? null : Number(sale.cashReceived),
-        changeAmount: sale.changeAmount === null ? null : Number(sale.changeAmount)
+        changeAmount: sale.changeAmount === null ? null : Number(sale.changeAmount),
+        creditDueAmount: sale.creditDueAmount === null ? null : Number(sale.creditDueAmount),
+        creditPaidAmount: sale.creditPaidAmount === null ? null : Number(sale.creditPaidAmount)
       },
       { status: 201 }
     );

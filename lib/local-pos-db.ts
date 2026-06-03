@@ -1,6 +1,8 @@
 "use client";
 
 export type LocalSyncStatus = "LOCAL_ONLY" | "SYNCING" | "SYNCED" | "FAILED";
+export type LocalPaymentMethod = "CASH" | "TRANSFER" | "CREDIT";
+export type LocalCreditStatus = "UNPAID" | "PARTIAL" | "PAID";
 
 export type LocalProduct = {
   id: string;
@@ -22,9 +24,15 @@ export type LocalSale = {
   totalAmount: number;
   totalCost: number;
   grossProfit: number;
-  paymentMethod: "CASH" | "TRANSFER";
+  paymentMethod: LocalPaymentMethod;
   cashReceived: number | null;
   changeAmount: number | null;
+  creditCustomerName?: string | null;
+  creditCustomerPhone?: string | null;
+  creditNote?: string | null;
+  creditDueAmount?: number | null;
+  creditPaidAmount?: number | null;
+  creditStatus?: LocalCreditStatus | null;
   createdAt: string;
   syncStatus: LocalSyncStatus;
   cloudSaleId?: string;
@@ -161,9 +169,12 @@ function localReceiptNo() {
 
 export async function saveLocalSale(input: {
   cart: Array<LocalProduct & { quantity: number }>;
-  paymentMethod: "CASH" | "TRANSFER";
+  paymentMethod: LocalPaymentMethod;
   cashReceived: number | null;
   changeAmount: number | null;
+  creditCustomerName?: string | null;
+  creditCustomerPhone?: string | null;
+  creditNote?: string | null;
 }): Promise<{ sale: LocalSale; items: LocalSaleItem[] }> {
   const db = await openLocalPosDb();
   const now = new Date().toISOString();
@@ -185,6 +196,9 @@ export async function saveLocalSale(input: {
       idempotencyKey: localId,
       paymentMethod: input.paymentMethod,
       cashReceived: input.cashReceived,
+      creditCustomerName: input.paymentMethod === "CREDIT" ? input.creditCustomerName : null,
+      creditCustomerPhone: input.paymentMethod === "CREDIT" ? input.creditCustomerPhone : null,
+      creditNote: input.paymentMethod === "CREDIT" ? input.creditNote : null,
       items: cartLines.map((item) => ({ productId: item.id, quantity: item.quantity }))
     },
     status: "LOCAL_ONLY",
@@ -241,6 +255,12 @@ export async function saveLocalSale(input: {
         paymentMethod: input.paymentMethod,
         cashReceived: input.cashReceived,
         changeAmount: input.changeAmount,
+        creditCustomerName: input.paymentMethod === "CREDIT" ? input.creditCustomerName ?? null : null,
+        creditCustomerPhone: input.paymentMethod === "CREDIT" ? input.creditCustomerPhone ?? null : null,
+        creditNote: input.paymentMethod === "CREDIT" ? input.creditNote ?? null : null,
+        creditDueAmount: input.paymentMethod === "CREDIT" ? totalAmount : 0,
+        creditPaidAmount: 0,
+        creditStatus: input.paymentMethod === "CREDIT" ? "UNPAID" : null,
         createdAt: now,
         syncStatus: "LOCAL_ONLY"
       };

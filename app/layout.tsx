@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, Boxes, DatabaseBackup, FileText, History, Layers, Package, ShoppingCart } from "lucide-react";
+import { BarChart3, Boxes, CreditCard, DatabaseBackup, FileText, History, Layers, Package, ShoppingCart } from "lucide-react";
 import { getSession, roleLabel, type Role } from "@/lib/auth";
 import { LogoutButton } from "./logout-button";
 import "./globals.css";
@@ -18,6 +18,7 @@ const nav: Array<{ href: string; label: string; icon: typeof BarChart3; roles: R
   { href: "/categories", label: "หมวดหมู่", icon: Layers, roles: ["OWNER"] },
   { href: "/stock", label: "สต๊อก", icon: Boxes, roles: ["OWNER"] },
   { href: "/sales", label: "ประวัติการขาย", icon: History, roles: ["OWNER", "STAFF"] },
+  { href: "/credits", label: "เงินเชื่อ", icon: CreditCard, roles: ["OWNER"] },
   { href: "/reports", label: "รายงาน", icon: FileText, roles: ["OWNER"] },
   { href: "/backup", label: "สำรองข้อมูล", icon: DatabaseBackup, roles: ["OWNER"] }
 ];

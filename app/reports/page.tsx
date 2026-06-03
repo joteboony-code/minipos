@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { baht, thDate } from "@/lib/format";
 
 type ProductRank = { name: string; barcode: string; quantity: number; totalAmount: number };
-type RecentSale = { id: string; receiptNo: string; totalAmount: number; paymentMethod: "CASH" | "TRANSFER"; createdAt: string };
+type RecentSale = { id: string; receiptNo: string; totalAmount: number; paymentMethod: "CASH" | "TRANSFER" | "CREDIT"; createdAt: string };
 type StockProduct = { id: string; name: string; barcode: string; stockQty: number; lowStockAlertQty?: number };
 type Summary = {
   totalAmount: number;
@@ -12,6 +12,10 @@ type Summary = {
   grossProfit: number;
   cashTotal: number;
   transferTotal: number;
+  creditTotal: number;
+  creditPaidTotal: number;
+  creditOutstandingTotal: number;
+  creditOpenBillCount: number;
   topProducts: ProductRank[];
   recentSales: RecentSale[];
 };
@@ -29,6 +33,7 @@ function currentMonth() {
 }
 
 function paymentLabel(method: RecentSale["paymentMethod"]) {
+  if (method === "CREDIT") return "เงินเชื่อ";
   return method === "CASH" ? "เงินสด" : "รับโอน";
 }
 
@@ -103,12 +108,16 @@ export default function ReportsPage() {
 
       <div>
         <h2 className="mb-3 text-2xl font-black">รายงานวันนี้</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="ยอดขายวันนี้" value={baht(today?.totalAmount ?? 0)} tone="teal" />
           <MetricCard label="จำนวนบิลวันนี้" value={today?.billCount ?? 0} />
           <MetricCard label="กำไรขั้นต้นวันนี้" value={baht(today?.grossProfit ?? 0)} tone="green" />
           <MetricCard label="เงินสด" value={baht(today?.cashTotal ?? 0)} />
           <MetricCard label="รับโอน" value={baht(today?.transferTotal ?? 0)} />
+          <MetricCard label="เงินเชื่อ" value={baht(today?.creditTotal ?? 0)} />
+          <MetricCard label="เงินเชื่อค้างชำระ" value={baht(today?.creditOutstandingTotal ?? 0)} />
+          <MetricCard label="ชำระเงินเชื่อแล้ว" value={baht(today?.creditPaidTotal ?? 0)} />
+          <MetricCard label="บิลเงินเชื่อค้าง" value={today?.creditOpenBillCount ?? 0} />
         </div>
       </div>
 
@@ -141,12 +150,16 @@ export default function ReportsPage() {
 
       <div>
         <h2 className="mb-3 text-2xl font-black">รายงานรายเดือน {selectedMonthLabel}</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="ยอดขายรายเดือน" value={baht(monthly?.totalAmount ?? 0)} tone="teal" />
           <MetricCard label="จำนวนบิล" value={monthly?.billCount ?? 0} />
           <MetricCard label="กำไรขั้นต้น" value={baht(monthly?.grossProfit ?? 0)} tone="green" />
           <MetricCard label="เงินสด" value={baht(monthly?.cashTotal ?? 0)} />
           <MetricCard label="รับโอน" value={baht(monthly?.transferTotal ?? 0)} />
+          <MetricCard label="เงินเชื่อ" value={baht(monthly?.creditTotal ?? 0)} />
+          <MetricCard label="เงินเชื่อค้างชำระ" value={baht(monthly?.creditOutstandingTotal ?? 0)} />
+          <MetricCard label="ชำระเงินเชื่อแล้ว" value={baht(monthly?.creditPaidTotal ?? 0)} />
+          <MetricCard label="บิลเงินเชื่อค้าง" value={monthly?.creditOpenBillCount ?? 0} />
         </div>
       </div>
 

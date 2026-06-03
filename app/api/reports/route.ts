@@ -44,13 +44,26 @@ async function summary(start: Date, end: Date) {
       sum.grossProfit = sum.grossProfit.add(sale.grossProfit);
       if (sale.paymentMethod === "CASH") sum.cashTotal = sum.cashTotal.add(sale.totalAmount);
       if (sale.paymentMethod === "TRANSFER") sum.transferTotal = sum.transferTotal.add(sale.totalAmount);
+      if (sale.paymentMethod === "CREDIT") sum.creditTotal = sum.creditTotal.add(sale.totalAmount);
+      if (sale.paymentMethod === "CREDIT") {
+        const due = new Prisma.Decimal(sale.creditDueAmount ?? sale.totalAmount);
+        const paid = new Prisma.Decimal(sale.creditPaidAmount ?? 0);
+        const remaining = due.sub(paid);
+        sum.creditPaidTotal = sum.creditPaidTotal.add(paid);
+        sum.creditOutstandingTotal = sum.creditOutstandingTotal.add(remaining.gt(0) ? remaining : new Prisma.Decimal(0));
+        if (sale.creditStatus !== "PAID") sum.creditOpenBillCount += 1;
+      }
       return sum;
     },
     {
       totalAmount: new Prisma.Decimal(0),
       grossProfit: new Prisma.Decimal(0),
       cashTotal: new Prisma.Decimal(0),
-      transferTotal: new Prisma.Decimal(0)
+      transferTotal: new Prisma.Decimal(0),
+      creditTotal: new Prisma.Decimal(0),
+      creditPaidTotal: new Prisma.Decimal(0),
+      creditOutstandingTotal: new Prisma.Decimal(0),
+      creditOpenBillCount: 0
     }
   );
 
@@ -76,6 +89,10 @@ async function summary(start: Date, end: Date) {
     grossProfit: Number(totals.grossProfit),
     cashTotal: Number(totals.cashTotal),
     transferTotal: Number(totals.transferTotal),
+    creditTotal: Number(totals.creditTotal),
+    creditPaidTotal: Number(totals.creditPaidTotal),
+    creditOutstandingTotal: Number(totals.creditOutstandingTotal),
+    creditOpenBillCount: totals.creditOpenBillCount,
     topProducts: [...products.values()]
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10)

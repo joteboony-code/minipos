@@ -20,9 +20,16 @@ type Sale = {
   totalAmount: number;
   totalCost: number | null;
   grossProfit: number | null;
-  paymentMethod: "CASH" | "TRANSFER";
+  paymentMethod: "CASH" | "TRANSFER" | "CREDIT";
   cashReceived: number | null;
   changeAmount: number | null;
+  creditCustomerName?: string | null;
+  creditCustomerPhone?: string | null;
+  creditNote?: string | null;
+  creditDueAmount?: number | null;
+  creditPaidAmount?: number | null;
+  creditStatus?: "UNPAID" | "PARTIAL" | "PAID" | null;
+  creditPayments?: Array<{ id: string; amount: number; note: string | null; createdAt: string }>;
   itemCount: number;
   createdAt: string;
   items: SaleItem[];
@@ -36,7 +43,14 @@ function csvValue(value: string | number | null) {
 }
 
 function paymentLabel(paymentMethod: Sale["paymentMethod"]) {
+  if (paymentMethod === "CREDIT") return "เงินเชื่อ";
   return paymentMethod === "CASH" ? "เงินสด" : "รับโอน";
+}
+
+function creditStatusLabel(status?: Sale["creditStatus"]) {
+  if (status === "PAID") return "ชำระแล้ว";
+  if (status === "PARTIAL") return "ชำระบางส่วน";
+  return "ค้างชำระ";
 }
 
 export default function SalesPage() {
@@ -61,6 +75,13 @@ export default function SalesPage() {
           paymentMethod: bundle.sale.paymentMethod,
           cashReceived: bundle.sale.cashReceived,
           changeAmount: bundle.sale.changeAmount,
+          creditCustomerName: bundle.sale.creditCustomerName,
+          creditCustomerPhone: bundle.sale.creditCustomerPhone,
+          creditNote: bundle.sale.creditNote,
+          creditDueAmount: bundle.sale.creditDueAmount,
+          creditPaidAmount: bundle.sale.creditPaidAmount,
+          creditStatus: bundle.sale.creditStatus,
+          creditPayments: [],
           itemCount: bundle.items.reduce((sum, item) => sum + item.quantity, 0),
           createdAt: bundle.sale.createdAt,
           syncStatus: bundle.sale.syncStatus,
@@ -81,7 +102,7 @@ export default function SalesPage() {
   }, []);
 
   function exportCsv() {
-    const headers = ["เลขที่บิล", "วันที่/เวลา", "ยอดรวม", "ต้นทุนรวม", "กำไรขั้นต้น", "วิธีชำระเงิน", "รับเงิน", "เงินทอน", "จำนวนสินค้า"];
+    const headers = ["เลขที่บิล", "วันที่/เวลา", "ยอดรวม", "ต้นทุนรวม", "กำไรขั้นต้น", "วิธีชำระเงิน", "ลูกค้าเงินเชื่อ", "สถานะเงินเชื่อ", "ยอดเงินเชื่อ", "ชำระแล้ว", "คงเหลือ", "รับเงิน", "เงินทอน", "จำนวนสินค้า"];
     const rows = sales.map((sale) => [
       sale.receiptNo,
       thDate(sale.createdAt),
@@ -89,6 +110,11 @@ export default function SalesPage() {
       (sale.totalCost ?? 0).toFixed(2),
       (sale.grossProfit ?? 0).toFixed(2),
       paymentLabel(sale.paymentMethod),
+      sale.creditCustomerName ?? "",
+      sale.paymentMethod === "CREDIT" ? creditStatusLabel(sale.creditStatus) : "",
+      sale.paymentMethod === "CREDIT" ? (sale.creditDueAmount ?? sale.totalAmount).toFixed(2) : "",
+      sale.paymentMethod === "CREDIT" ? (sale.creditPaidAmount ?? 0).toFixed(2) : "",
+      sale.paymentMethod === "CREDIT" ? Math.max((sale.creditDueAmount ?? sale.totalAmount) - (sale.creditPaidAmount ?? 0), 0).toFixed(2) : "",
       sale.cashReceived === null ? "" : sale.cashReceived.toFixed(2),
       sale.changeAmount === null ? "" : sale.changeAmount.toFixed(2),
       sale.itemCount
@@ -131,7 +157,10 @@ export default function SalesPage() {
                     {sale.isLocal && <div className="mt-1 text-xs text-amber-700">{sale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : "รอซิงก์"}</div>}
                   </td>
                   <td className="px-4 py-3">{thDate(sale.createdAt)}</td>
-                  <td className="px-4 py-3">{paymentLabel(sale.paymentMethod)}</td>
+                  <td className="px-4 py-3">
+                    <div>{paymentLabel(sale.paymentMethod)}</div>
+                    {sale.paymentMethod === "CREDIT" && <div className="mt-1 text-xs font-black text-amber-700">{sale.creditCustomerName} | {creditStatusLabel(sale.creditStatus)}</div>}
+                  </td>
                   <td className="px-4 py-3 text-center">{sale.itemCount}</td>
                   <td className="px-4 py-3 text-right font-bold">{baht(sale.totalAmount)}</td>
                   {role === "OWNER" && <td className="px-4 py-3 text-right text-emerald-700">{baht(sale.grossProfit ?? 0)}</td>}
@@ -186,6 +215,27 @@ function ReceiptDetail({ sale, onPrint, printOnly = false }: { sale: Sale; onPri
       <div className="mt-4 space-y-2 text-sm">
         <div className="flex justify-between text-lg font-black"><span>ยอดรวมทั้งหมด</span><span>{baht(sale.totalAmount)}</span></div>
         <div className="flex justify-between"><span>วิธีชำระเงิน</span><span>{paymentLabel(sale.paymentMethod)}</span></div>
+        {sale.paymentMethod === "CREDIT" && (
+          <>
+            <div className="flex justify-between"><span>ลูกค้า</span><span className="text-right">{sale.creditCustomerName ?? "-"}</span></div>
+            {sale.creditCustomerPhone && <div className="flex justify-between"><span>เบอร์โทร</span><span>{sale.creditCustomerPhone}</span></div>}
+            <div className="flex justify-between font-black"><span>สถานะค้างชำระ</span><span>{creditStatusLabel(sale.creditStatus)}</span></div>
+            <div className="flex justify-between"><span>ยอดค้าง</span><span>{baht(sale.creditDueAmount ?? sale.totalAmount)}</span></div>
+            <div className="flex justify-between"><span>ชำระแล้ว</span><span>{baht(sale.creditPaidAmount ?? 0)}</span></div>
+            <div className="flex justify-between"><span>ยอดคงเหลือ</span><span>{baht(Math.max((sale.creditDueAmount ?? sale.totalAmount) - (sale.creditPaidAmount ?? 0), 0))}</span></div>
+            {(sale.creditPayments ?? []).length > 0 && (
+              <div className="mt-2 border-t border-dashed border-slate-300 pt-2">
+                <div className="font-black">ประวัติชำระ</div>
+                {(sale.creditPayments ?? []).map((payment) => (
+                  <div key={payment.id} className="mt-1 flex justify-between gap-3">
+                    <span>{thDate(payment.createdAt)} {payment.note ? `- ${payment.note}` : ""}</span>
+                    <span className="font-bold">{baht(payment.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
         {sale.paymentMethod === "CASH" && (
           <>
             <div className="flex justify-between"><span>รับเงิน</span><span>{baht(sale.cashReceived ?? 0)}</span></div>

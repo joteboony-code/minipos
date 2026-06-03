@@ -13,6 +13,7 @@ import {
   markSaleSynced,
   putLocalProducts,
   saveLocalSale,
+  type LocalPaymentMethod,
   type LocalProduct,
   type LocalSyncStatus
 } from "@/lib/local-pos-db";
@@ -25,9 +26,11 @@ type SaleSuccess = {
   localId?: string;
   receiptNo: string;
   totalAmount: number;
-  paymentMethod: "CASH" | "TRANSFER";
+  paymentMethod: LocalPaymentMethod;
   cashReceived: number | null;
   changeAmount: number | null;
+  creditCustomerName?: string | null;
+  creditStatus?: "UNPAID" | "PARTIAL" | "PAID" | null;
   syncStatus: LocalSyncStatus;
   cloudReceiptNo?: string;
 };
@@ -67,8 +70,11 @@ export default function PosPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSearchedQuery, setPreviewSearchedQuery] = useState("");
   const [message, setMessage] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER">("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<LocalPaymentMethod>("CASH");
   const [cashReceived, setCashReceived] = useState("");
+  const [creditCustomerName, setCreditCustomerName] = useState("");
+  const [creditCustomerPhone, setCreditCustomerPhone] = useState("");
+  const [creditNote, setCreditNote] = useState("");
   const [promptPay, setPromptPay] = useState<PromptPayState | null>(null);
   const [successSale, setSuccessSale] = useState<SaleSuccess | null>(null);
   const [busy, setBusy] = useState(false);
@@ -150,7 +156,12 @@ export default function PosPage() {
   const cashAmount = Number(cashReceived || 0);
   const validCashAmount = Number.isFinite(cashAmount) ? cashAmount : 0;
   const isCashTooLow = paymentMethod === "CASH" && cashReceived.trim() !== "" && validCashAmount < total;
-  const canCompleteSale = cart.length > 0 && !busy && (paymentMethod === "TRANSFER" || (cashReceived.trim() !== "" && Number.isFinite(cashAmount) && cashAmount >= total));
+  const creditNameMissing = paymentMethod === "CREDIT" && creditCustomerName.trim() === "";
+  const canCompleteSale = cart.length > 0 && !busy && (
+    paymentMethod === "TRANSFER" ||
+    (paymentMethod === "CREDIT" && creditCustomerName.trim() !== "") ||
+    (paymentMethod === "CASH" && cashReceived.trim() !== "" && Number.isFinite(cashAmount) && cashAmount >= total)
+  );
   const change = Math.max(validCashAmount - total, 0);
   const trimmedQuery = query.trim();
   const previewExactProduct = previewProducts.find((product) => product.barcode === trimmedQuery);
@@ -309,6 +320,7 @@ export default function PosPage() {
     if (paymentMethod === "CASH" && cashReceived.trim() === "") return setMessage("กรุณาระบุเงินสดที่รับมา");
     if (paymentMethod === "CASH" && !Number.isFinite(cashAmount)) return setMessage("จำนวนเงินสดไม่ถูกต้อง");
     if (paymentMethod === "CASH" && cashAmount < total) return setMessage("เงินรับน้อยกว่ายอดรวม");
+    if (paymentMethod === "CREDIT" && creditCustomerName.trim() === "") return setMessage("กรุณาใส่ชื่อลูกค้าเงินเชื่อ");
     saleSubmittingRef.current = true;
     setBusy(true);
     try {
@@ -322,7 +334,10 @@ export default function PosPage() {
         cart: localCart,
         paymentMethod,
         cashReceived: paymentMethod === "CASH" ? cashAmount : null,
-        changeAmount: paymentMethod === "CASH" ? cashAmount - total : null
+        changeAmount: paymentMethod === "CASH" ? cashAmount - total : paymentMethod === "CREDIT" ? 0 : null,
+        creditCustomerName: paymentMethod === "CREDIT" ? creditCustomerName.trim() : null,
+        creditCustomerPhone: paymentMethod === "CREDIT" ? creditCustomerPhone.trim() || null : null,
+        creditNote: paymentMethod === "CREDIT" ? creditNote.trim() || null : null
       });
       const updatedProducts = await getAllLocalProducts();
       setProducts(updatedProducts);
@@ -333,10 +348,15 @@ export default function PosPage() {
         paymentMethod: localSaved.sale.paymentMethod,
         cashReceived: localSaved.sale.cashReceived,
         changeAmount: localSaved.sale.changeAmount,
+        creditCustomerName: localSaved.sale.creditCustomerName,
+        creditStatus: localSaved.sale.creditStatus,
         syncStatus: "LOCAL_ONLY"
       });
       setCart([]);
       setCashReceived("");
+      setCreditCustomerName("");
+      setCreditCustomerPhone("");
+      setCreditNote("");
       setMessage(`บันทึกในเครื่องแล้ว ${localSaved.sale.receiptNo}`);
       refreshSyncStatus();
       if (navigator.onLine) window.setTimeout(() => syncPendingSales(), 0);
@@ -370,12 +390,15 @@ export default function PosPage() {
     return (
       <div className="card p-3">
         <div className="text-xl font-black">รับชำระเงิน</div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <button className={`btn min-h-12 text-lg ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CASH")} type="button">
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CASH")} type="button">
             เงินสด
           </button>
-          <button className={`btn min-h-12 text-lg ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("TRANSFER")} type="button">
+          <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("TRANSFER")} type="button">
             รับโอน
+          </button>
+          <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "CREDIT" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CREDIT")} type="button">
+            เงินเชื่อ
           </button>
         </div>
         <div className="mt-2 rounded-lg bg-slate-100 p-3">
@@ -425,6 +448,24 @@ export default function PosPage() {
             ) : (
               <div className="mt-2 rounded-lg bg-white p-2 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
             )}
+          </div>
+        )}
+        {paymentMethod === "CREDIT" && (
+          <div className="mt-2 space-y-2 rounded-lg border-2 border-amber-100 bg-amber-50 p-3">
+            <div className="text-lg font-black text-amber-900">เงินเชื่อ</div>
+            <label className="block space-y-1">
+              <span className="font-black">ชื่อลูกค้า</span>
+              <input className="field min-h-11 text-base" value={creditCustomerName} onChange={(event) => setCreditCustomerName(event.target.value)} disabled={busy} />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-black">เบอร์โทร (ไม่บังคับ)</span>
+              <input className="field min-h-11 text-base" value={creditCustomerPhone} onChange={(event) => setCreditCustomerPhone(event.target.value)} disabled={busy} />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-black">หมายเหตุ (ไม่บังคับ)</span>
+              <input className="field min-h-11 text-base" value={creditNote} onChange={(event) => setCreditNote(event.target.value)} disabled={busy} />
+            </label>
+            {creditNameMissing && <div className="rounded-lg border-2 border-amber-300 bg-white p-2 font-black text-amber-800">กรุณาใส่ชื่อลูกค้าเงินเชื่อ</div>}
           </div>
         )}
         <button className="btn btn-primary mt-3 w-full py-3 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
@@ -644,6 +685,7 @@ export default function PosPage() {
               <div className="flex justify-between gap-4"><span>เลขที่บิล</span><span className="text-right">{successSale.receiptNo}</span></div>
               {successSale.cloudReceiptNo && <div className="flex justify-between gap-4"><span>เลขที่ Cloud</span><span className="text-right">{successSale.cloudReceiptNo}</span></div>}
               <div className="flex justify-between gap-4"><span>ยอดรวม</span><span>{baht(successSale.totalAmount)}</span></div>
+              <div className="flex justify-between gap-4"><span>วิธีชำระเงิน</span><span>{successSale.paymentMethod === "CREDIT" ? "เงินเชื่อ" : successSale.paymentMethod === "TRANSFER" ? "รับโอน" : "เงินสด"}</span></div>
               <div className="flex justify-between gap-4"><span>สถานะซิงก์</span><span>{successSale.syncStatus === "SYNCED" ? "ซิงก์แล้ว" : successSale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : "รอซิงก์ Cloud"}</span></div>
               {successSale.paymentMethod === "CASH" && (
                 <>
@@ -653,6 +695,12 @@ export default function PosPage() {
                     <div className="text-4xl font-black text-emerald-700">{baht(successSale.changeAmount ?? 0)}</div>
                   </div>
                 </>
+              )}
+              {successSale.paymentMethod === "CREDIT" && (
+                <div className="rounded-lg bg-amber-50 p-4">
+                  <div className="flex justify-between gap-4"><span>ลูกค้า</span><span className="text-right">{successSale.creditCustomerName}</span></div>
+                  <div className="mt-2 flex justify-between gap-4"><span>สถานะ</span><span className="font-black text-amber-800">ค้างชำระ</span></div>
+                </div>
               )}
             </div>
             <button className="btn btn-primary mt-6 w-full" onClick={() => setSuccessSale(null)} type="button">ปิด</button>

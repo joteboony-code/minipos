@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
 
       return csvResponse(
         `sales-${stamp}.csv`,
-        ["เลขที่บิล", "วันที่/เวลา", "ยอดรวม", "ต้นทุนรวม", "กำไรขั้นต้น", "วิธีชำระเงิน", "รับเงิน", "เงินทอน", "จำนวนสินค้า"],
+        ["เลขที่บิล", "วันที่/เวลา", "ยอดรวม", "ต้นทุนรวม", "กำไรขั้นต้น", "วิธีชำระเงิน", "ลูกค้าเงินเชื่อ", "เบอร์โทร", "สถานะเงินเชื่อ", "ยอดเงินเชื่อ", "ชำระแล้ว", "คงเหลือ", "รับเงิน", "เงินทอน", "จำนวนสินค้า"],
         sales.map((sale) => [
           sale.receiptNo,
           sale.createdAt.toISOString(),
@@ -86,6 +86,12 @@ export async function GET(request: NextRequest) {
           sale.totalCost.toString(),
           sale.grossProfit.toString(),
           sale.paymentMethod,
+          sale.creditCustomerName ?? "",
+          sale.creditCustomerPhone ?? "",
+          sale.creditStatus ?? "",
+          sale.creditDueAmount?.toString() ?? "",
+          sale.creditPaidAmount?.toString() ?? "",
+          sale.paymentMethod === "CREDIT" ? (Number(sale.creditDueAmount ?? sale.totalAmount) - Number(sale.creditPaidAmount ?? 0)).toFixed(2) : "",
           sale.cashReceived?.toString() ?? "",
           sale.changeAmount?.toString() ?? "",
           sale.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -115,12 +121,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [categories, products, sales, saleItems, stockMovements] = await Promise.all([
+    const [categories, products, sales, saleItems, stockMovements, creditPayments] = await Promise.all([
       prisma.category.findMany({ orderBy: { name: "asc" } }),
       prisma.product.findMany({ orderBy: { name: "asc" } }),
       prisma.sale.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.saleItem.findMany({ orderBy: { id: "asc" } }),
-      prisma.stockMovement.findMany({ orderBy: { createdAt: "desc" } })
+      prisma.stockMovement.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.creditPayment.findMany({ orderBy: { createdAt: "desc" } })
     ]);
 
     return jsonResponse(`minimart-pos-backup-${stamp}.json`, {
@@ -129,7 +136,8 @@ export async function GET(request: NextRequest) {
       products,
       sales,
       saleItems,
-      stockMovements
+      stockMovements,
+      creditPayments
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "ไม่สามารถส่งออกข้อมูลได้" }, { status: 403 });

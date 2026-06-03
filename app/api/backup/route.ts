@@ -121,11 +121,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [categories, products, sales, saleItems, stockMovements, creditPayments] = await Promise.all([
+    const [categories, products, productBatches, sales, saleItems, saleItemBatches, stockMovements, creditPayments] = await Promise.all([
       prisma.category.findMany({ orderBy: { name: "asc" } }),
       prisma.product.findMany({ orderBy: { name: "asc" } }),
+      prisma.productBatch.findMany({ orderBy: [{ receivedAt: "desc" }, { id: "asc" }] }),
       prisma.sale.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.saleItem.findMany({ orderBy: { id: "asc" } }),
+      prisma.saleItemBatch.findMany({ orderBy: { id: "asc" } }),
       prisma.stockMovement.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.creditPayment.findMany({ orderBy: { createdAt: "desc" } })
     ]);
@@ -134,8 +136,10 @@ export async function GET(request: NextRequest) {
       exportedAt: new Date().toISOString(),
       categories,
       products,
+      productBatches,
       sales,
       saleItems,
+      saleItemBatches,
       stockMovements,
       creditPayments
     });

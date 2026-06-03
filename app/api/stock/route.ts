@@ -44,6 +44,47 @@ export async function POST(request: NextRequest) {
       });
       if (updated.count !== 1) throw new Error("สต็อกมีการเปลี่ยนแปลง กรุณาลองใหม่");
 
+      if (type === "RECEIVE" && unitCost !== null) {
+        await tx.productBatch.create({
+          data: {
+            productId,
+            receivedQty: Math.abs(quantity),
+            remainingQty: Math.abs(quantity),
+            unitCost,
+            note: body.note || null
+          }
+        });
+      }
+      if (type === "ADJUST" && afterQty > beforeQty) {
+        await tx.productBatch.create({
+          data: {
+            productId,
+            receivedQty: afterQty - beforeQty,
+            remainingQty: afterQty - beforeQty,
+            unitCost: product.costPrice,
+            note: body.note || "ปรับยอดเพิ่ม"
+          }
+        });
+      }
+      if (type === "ADJUST" && afterQty < beforeQty) {
+        let remainingToReduce = beforeQty - afterQty;
+        const batches = await tx.productBatch.findMany({
+          where: { productId, remainingQty: { gt: 0 } },
+          orderBy: [{ receivedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }]
+        });
+        for (const batch of batches) {
+          if (remainingToReduce <= 0) break;
+          const reducedQty = Math.min(batch.remainingQty, remainingToReduce);
+          const updatedBatch = await tx.productBatch.updateMany({
+            where: { id: batch.id, remainingQty: batch.remainingQty },
+            data: { remainingQty: { decrement: reducedQty } }
+          });
+          if (updatedBatch.count !== 1) throw new Error("ล็อตสินค้าเปลี่ยนแปลง กรุณาลองใหม่");
+          remainingToReduce -= reducedQty;
+        }
+        if (remainingToReduce > 0) throw new Error("ล็อตสินค้าไม่พอสำหรับการปรับยอด กรุณาตั้งล็อตยอดยกมา");
+      }
+
       return tx.stockMovement.create({
         data: {
           productId,

@@ -10,8 +10,18 @@ type SaleItem = {
   barcodeSnapshot: string;
   quantity: number;
   unitPrice: number;
+  costPrice?: number | null;
   lineTotal: number;
   lineProfit: number | null;
+  itemBatches?: Array<{
+    id: string;
+    productBatchId: string;
+    quantity: number;
+    unitCost: number;
+    totalCost: number;
+    receivedAt: string;
+    note?: string | null;
+  }>;
 };
 
 type Sale = {
@@ -92,8 +102,10 @@ export default function SalesPage() {
             barcodeSnapshot: item.barcodeSnapshot,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
+            costPrice: null,
             lineTotal: item.lineTotal,
-            lineProfit: item.lineProfit
+            lineProfit: item.lineProfit,
+            itemBatches: []
           }))
         }));
       const allSales = [...localSales, ...(Array.isArray(cloudSales) ? cloudSales : [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -169,7 +181,7 @@ export default function SalesPage() {
                 {openId === sale.id && (
                   <tr className="bg-slate-50">
                     <td className="px-4 py-4" colSpan={role === "OWNER" ? 7 : 6}>
-                      <ReceiptDetail sale={sale} onPrint={() => printReceipt(sale.id)} />
+                      <ReceiptDetail sale={sale} onPrint={() => printReceipt(sale.id)} role={role} />
                     </td>
                   </tr>
                 )}
@@ -180,14 +192,14 @@ export default function SalesPage() {
       </div>
       {sales.map((sale) => (
         <div key={`print-${sale.id}`} className={openId === sale.id ? "receipt-print" : "hidden"}>
-          <ReceiptDetail sale={sale} printOnly />
+          <ReceiptDetail sale={sale} printOnly role={role} />
         </div>
       ))}
     </section>
   );
 }
 
-function ReceiptDetail({ sale, onPrint, printOnly = false }: { sale: Sale; onPrint?: () => void; printOnly?: boolean }) {
+function ReceiptDetail({ sale, onPrint, printOnly = false, role }: { sale: Sale; onPrint?: () => void; printOnly?: boolean; role: "OWNER" | "STAFF" | null }) {
   const syncLabel = sale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : sale.syncStatus === "LOCAL_ONLY" || sale.syncStatus === "SYNCING" ? "รอซิงก์" : "ซิงก์แล้ว";
   return (
     <div className={`mx-auto max-w-md rounded-lg bg-white p-5 text-slate-950 ${printOnly ? "" : "border border-slate-200"}`}>
@@ -209,6 +221,17 @@ function ReceiptDetail({ sale, onPrint, printOnly = false }: { sale: Sale; onPri
               <div className="text-right">{baht(item.unitPrice)}</div>
               <div className="text-right font-bold">{baht(item.lineTotal)}</div>
             </div>
+            {role === "OWNER" && !printOnly && (
+              <div className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-600">
+                <div className="font-black">ต้นทุน FIFO: {baht(item.costPrice ?? 0)} / หน่วย | กำไร: {baht(item.lineProfit ?? 0)}</div>
+                {(item.itemBatches ?? []).map((batch) => (
+                  <div key={batch.id} className="mt-1 flex justify-between gap-2">
+                    <span>ล็อต {thDate(batch.receivedAt)} x {batch.quantity}</span>
+                    <span>{baht(batch.unitCost)} = {baht(batch.totalCost)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

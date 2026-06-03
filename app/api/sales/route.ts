@@ -103,31 +103,74 @@ async function createSale(body: unknown) {
       where: { id: { in: items.map((item) => item.productId) } }
     });
 
-    const lines = items.map((item) => {
+    const lines: Array<{
+      product: (typeof products)[number];
+      quantity: number;
+      unitPrice: Prisma.Decimal;
+      costPrice: Prisma.Decimal;
+      lineCost: Prisma.Decimal;
+      lineTotal: Prisma.Decimal;
+      lineProfit: Prisma.Decimal;
+      allocations: Array<{
+        batchId: string;
+        previousRemainingQty: number;
+        quantity: number;
+        unitCost: Prisma.Decimal;
+        totalCost: Prisma.Decimal;
+      }>;
+    }> = [];
+    for (const item of items) {
       const product = products.find((entry) => entry.id === item.productId);
       if (!product) throw new Error("ไม่พบสินค้า");
       if (!product.isActive) throw new Error(`${product.name} ถูกปิดใช้งาน`);
       if (product.stockQty < item.quantity) throw new Error(`${product.name} มีสต็อกไม่พอ`);
 
       const unitPrice = product.salePrice;
-      const costPrice = product.costPrice;
       const quantity = new Prisma.Decimal(item.quantity);
-      const lineTotal = unitPrice.mul(quantity);
-      const lineCost = costPrice.mul(quantity);
+      const lineTotal = unitPrice.mul(quantity).toDecimalPlaces(2);
+      const batches = await tx.productBatch.findMany({
+        where: { productId: item.productId, remainingQty: { gt: 0 } },
+        orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]
+      });
 
-      return {
+      let remainingToAllocate = item.quantity;
+      const allocations = [];
+      for (const batch of batches) {
+        if (remainingToAllocate <= 0) break;
+        const allocatedQty = Math.min(batch.remainingQty, remainingToAllocate);
+        const totalCost = batch.unitCost.mul(allocatedQty).toDecimalPlaces(2);
+        allocations.push({
+          batchId: batch.id,
+          previousRemainingQty: batch.remainingQty,
+          quantity: allocatedQty,
+          unitCost: batch.unitCost,
+          totalCost
+        });
+        remainingToAllocate -= allocatedQty;
+      }
+
+      if (remainingToAllocate > 0) {
+        throw new Error(`${product.name} ยังไม่มีล็อตสินค้าเพียงพอ กรุณาตั้งล็อตยอดยกมา`);
+      }
+
+      const lineCost = allocations.reduce((sum, allocation) => sum.add(allocation.totalCost), new Prisma.Decimal(0)).toDecimalPlaces(2);
+      const costPrice = lineCost.div(quantity).toDecimalPlaces(2);
+
+      lines.push({
         product,
         quantity: item.quantity,
         unitPrice,
         costPrice,
+        lineCost,
         lineTotal,
-        lineProfit: lineTotal.sub(lineCost)
-      };
-    });
+        lineProfit: lineTotal.sub(lineCost).toDecimalPlaces(2),
+        allocations
+      });
+    }
 
-    const totalAmount = lines.reduce((sum, line) => sum.add(line.lineTotal), new Prisma.Decimal(0));
-    const totalCost = lines.reduce((sum, line) => sum.add(line.costPrice.mul(line.quantity)), new Prisma.Decimal(0));
-    const grossProfit = totalAmount.sub(totalCost);
+    const totalAmount = lines.reduce((sum, line) => sum.add(line.lineTotal), new Prisma.Decimal(0)).toDecimalPlaces(2);
+    const totalCost = lines.reduce((sum, line) => sum.add(line.lineCost), new Prisma.Decimal(0)).toDecimalPlaces(2);
+    const grossProfit = totalAmount.sub(totalCost).toDecimalPlaces(2);
     const cashReceived = paymentMethod === "CASH" ? parseCashReceived(checkout.cashReceived) : null;
     const changeAmount = paymentMethod === "CASH" && cashReceived ? cashReceived.sub(totalAmount) : paymentMethod === "CREDIT" ? new Prisma.Decimal(0) : null;
 
@@ -136,7 +179,7 @@ async function createSale(body: unknown) {
     }
 
     const receiptNo = await nextReceiptNo(tx);
-    const created = await tx.sale.create({
+    const sale = await tx.sale.create({
       data: {
         receiptNo,
         totalAmount,
@@ -151,24 +194,47 @@ async function createSale(body: unknown) {
         creditDueAmount: paymentMethod === "CREDIT" ? totalAmount : new Prisma.Decimal(0),
         creditPaidAmount: new Prisma.Decimal(0),
         creditStatus: paymentMethod === "CREDIT" ? "UNPAID" : null,
-        idempotencyKey,
-        items: {
-          create: lines.map((line) => ({
-            productId: line.product.id,
-            productNameSnapshot: line.product.name,
-            barcodeSnapshot: line.product.barcode,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice,
-            costPrice: line.costPrice,
-            lineTotal: line.lineTotal,
-            lineProfit: line.lineProfit
-          }))
-        }
-      },
-      include: { items: true }
+        idempotencyKey
+      }
     });
 
     for (const line of lines) {
+      const saleItem = await tx.saleItem.create({
+        data: {
+          saleId: sale.id,
+          productId: line.product.id,
+          productNameSnapshot: line.product.name,
+          barcodeSnapshot: line.product.barcode,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          costPrice: line.costPrice,
+          lineTotal: line.lineTotal,
+          lineProfit: line.lineProfit
+        }
+      });
+
+      for (const allocation of line.allocations) {
+        const updatedBatch = await tx.productBatch.updateMany({
+          where: {
+            id: allocation.batchId,
+            remainingQty: allocation.previousRemainingQty
+          },
+          data: { remainingQty: { decrement: allocation.quantity } }
+        });
+        if (updatedBatch.count !== 1) {
+          throw new Error(`${line.product.name} ล็อตสินค้าเปลี่ยนแปลง กรุณาลองใหม่`);
+        }
+        await tx.saleItemBatch.create({
+          data: {
+            saleItemId: saleItem.id,
+            productBatchId: allocation.batchId,
+            quantity: allocation.quantity,
+            unitCost: allocation.unitCost,
+            totalCost: allocation.totalCost
+          }
+        });
+      }
+
       const beforeQty = line.product.stockQty;
       const afterQty = beforeQty - line.quantity;
       const updated = await tx.product.updateMany({
@@ -191,12 +257,15 @@ async function createSale(body: unknown) {
           quantityChange: -line.quantity,
           beforeQty,
           afterQty,
-          note: created.receiptNo
+          note: sale.receiptNo
         }
       });
     }
 
-    return created;
+    return tx.sale.findUniqueOrThrow({
+      where: { id: sale.id },
+      include: { items: { include: { itemBatches: true } } }
+    });
   });
 }
 
@@ -204,7 +273,17 @@ export async function GET() {
   const session = await getSession();
   const canSeeProfit = session?.role === "OWNER";
   const sales = await prisma.sale.findMany({
-    include: { items: true, creditPayments: { orderBy: { createdAt: "desc" } } },
+    include: {
+      items: {
+        include: {
+          itemBatches: {
+            include: { productBatch: true },
+            orderBy: { createdAt: "asc" }
+          }
+        }
+      },
+      creditPayments: { orderBy: { createdAt: "desc" } }
+    },
     orderBy: { createdAt: "desc" },
     take: 100
   });
@@ -229,7 +308,18 @@ export async function GET() {
         unitPrice: Number(item.unitPrice),
         costPrice: canSeeProfit ? Number(item.costPrice) : null,
         lineTotal: Number(item.lineTotal),
-        lineProfit: canSeeProfit ? Number(item.lineProfit) : null
+        lineProfit: canSeeProfit ? Number(item.lineProfit) : null,
+        itemBatches: canSeeProfit
+          ? item.itemBatches.map((batch) => ({
+              id: batch.id,
+              productBatchId: batch.productBatchId,
+              quantity: batch.quantity,
+              unitCost: Number(batch.unitCost),
+              totalCost: Number(batch.totalCost),
+              receivedAt: batch.productBatch.receivedAt,
+              note: batch.productBatch.note
+            }))
+          : []
       }))
     }))
   );

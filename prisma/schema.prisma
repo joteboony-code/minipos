@@ -42,6 +42,7 @@ model Product {
   isQuickSale      Boolean         @default(false)
   saleItems        SaleItem[]
   stockMovements   StockMovement[]
+  productBatches   ProductBatch[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -87,6 +88,40 @@ model SaleItem {
   costPrice           Decimal @db.Decimal(10, 2)
   lineTotal           Decimal @db.Decimal(10, 2)
   lineProfit          Decimal @db.Decimal(10, 2)
+  itemBatches         SaleItemBatch[]
+}
+
+model ProductBatch {
+  id           String          @id @default(cuid())
+  productId    String
+  product      Product         @relation(fields: [productId], references: [id])
+  receivedQty  Int
+  remainingQty Int
+  unitCost     Decimal         @db.Decimal(10, 2)
+  note         String?
+  receivedAt   DateTime        @default(now())
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  saleItems    SaleItemBatch[]
+
+  @@index([productId, receivedAt])
+  @@index([productId, remainingQty])
+  @@index([receivedAt])
+}
+
+model SaleItemBatch {
+  id             String       @id @default(cuid())
+  saleItemId     String
+  saleItem       SaleItem     @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+  productBatchId String
+  productBatch   ProductBatch @relation(fields: [productBatchId], references: [id])
+  quantity       Int
+  unitCost       Decimal      @db.Decimal(10, 2)
+  totalCost      Decimal      @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+
+  @@index([saleItemId])
+  @@index([productBatchId])
 }
 
 model StockMovement {

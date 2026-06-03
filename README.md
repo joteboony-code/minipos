@@ -55,8 +55,11 @@ AUTH_SECRET=""
 npm install
 npx prisma migrate dev
 npm run prisma:seed
+npm run setup:opening-batches
 npm run dev
 ```
+
+หลังเพิ่มระบบ FIFO ครั้งแรก ให้รัน `npm run setup:opening-batches` หลัง migration เพื่อสร้างล็อตยอดยกมาจาก `Product.stockQty` เดิม สคริปต์นี้ไม่ล้างข้อมูลและจะข้ามสินค้าที่มีล็อตอยู่แล้ว
 
 เปิดใช้งานที่ [http://localhost:3000](http://localhost:3000)
 

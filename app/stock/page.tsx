@@ -25,10 +25,20 @@ type Movement = {
   createdAt: string;
   product: Product;
 };
+type ProductBatch = {
+  id: string;
+  receivedQty: number;
+  remainingQty: number;
+  unitCost: number;
+  note?: string | null;
+  receivedAt: string;
+  product: Pick<Product, "id" | "name" | "barcode" | "unit">;
+};
 
 export default function StockPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [productId, setProductId] = useState("");
   const [type, setType] = useState<"RECEIVE" | "ADJUST">("RECEIVE");
   const [quantity, setQuantity] = useState("1");
@@ -65,9 +75,10 @@ export default function StockPage() {
   }
 
   async function load() {
-    const [productsRes, stockRes] = await Promise.all([fetch("/api/products"), fetch("/api/stock")]);
+    const [productsRes, stockRes, batchesRes] = await Promise.all([fetch("/api/products"), fetch("/api/stock"), fetch("/api/stock/batches")]);
     setProducts(await productsRes.json());
     setMovements(await stockRes.json());
+    if (batchesRes.ok) setBatches(await batchesRes.json());
   }
 
   useEffect(() => {
@@ -254,6 +265,36 @@ export default function StockPage() {
       </form>
 
       <div className="card overflow-x-auto">
+        <div className="px-4 pt-4">
+          <h2 className="text-xl font-black">ล็อตสินค้า FIFO</h2>
+          <p className="text-sm text-slate-500">ล็อตที่เหลือจะถูกตัดจากล็อตเก่าสุดก่อนตอนขาย</p>
+        </div>
+        <table className="mt-3 w-full min-w-[840px] text-sm">
+          <thead className="bg-slate-50 text-left text-slate-600">
+            <tr><th className="px-4 py-3">วันที่รับเข้า</th><th className="px-4 py-3">สินค้า</th><th className="px-4 py-3">บาร์โค้ด</th><th className="px-4 py-3 text-right">รับเข้า</th><th className="px-4 py-3 text-right">คงเหลือ</th><th className="px-4 py-3 text-right">ทุน/หน่วย</th><th className="px-4 py-3">หมายเหตุ</th></tr>
+          </thead>
+          <tbody>
+            {batches.map((batch) => (
+              <tr key={batch.id} className="border-t border-slate-100">
+                <td className="px-4 py-3">{thDate(batch.receivedAt)}</td>
+                <td className="px-4 py-3 font-bold">{batch.product.name}</td>
+                <td className="px-4 py-3">{batch.product.barcode}</td>
+                <td className="px-4 py-3 text-right">{batch.receivedQty} {batch.product.unit}</td>
+                <td className="px-4 py-3 text-right font-black">{batch.remainingQty} {batch.product.unit}</td>
+                <td className="px-4 py-3 text-right">{baht(batch.unitCost)}</td>
+                <td className="px-4 py-3">{batch.note ?? "-"}</td>
+              </tr>
+            ))}
+            {batches.length === 0 && (
+              <tr>
+                <td className="px-4 py-6 text-center text-slate-500" colSpan={7}>ยังไม่มีล็อตสินค้า</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card overflow-x-auto">
         <table className="w-full min-w-[840px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr><th className="px-4 py-3">เวลา</th><th className="px-4 py-3">สินค้า</th><th className="px-4 py-3">ประเภท</th><th className="px-4 py-3 text-right">เปลี่ยนแปลง</th><th className="px-4 py-3 text-right">ก่อน</th><th className="px-4 py-3 text-right">หลัง</th><th className="px-4 py-3">หมายเหตุ</th></tr>
@@ -311,7 +352,7 @@ export default function StockPage() {
             </div>
 
             <div className="mt-4 rounded-lg border-2 border-teal-100 bg-teal-50 p-3">
-              <div className="text-sm font-black text-teal-800">ยอดรวม</div>
+              <div className="text-sm font-black text-teal-800">มูลค่ารับเข้า</div>
               <div className="text-3xl font-black text-teal-700">{baht(receiveTotal)}</div>
             </div>
 

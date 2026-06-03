@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { baht, thDate } from "@/lib/format";
 
-type ProductRank = { name: string; barcode: string; quantity: number; totalAmount: number };
+type ProductRank = { name: string; barcode: string; quantity: number; totalAmount: number; grossProfit?: number };
 type RecentSale = { id: string; receiptNo: string; totalAmount: number; paymentMethod: "CASH" | "TRANSFER" | "CREDIT"; createdAt: string };
 type StockProduct = { id: string; name: string; barcode: string; stockQty: number; lowStockAlertQty?: number };
 type Summary = {

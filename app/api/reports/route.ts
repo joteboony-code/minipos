@@ -67,7 +67,7 @@ async function summary(start: Date, end: Date) {
     }
   );
 
-  const products = new Map<string, { name: string; barcode: string; quantity: number; totalAmount: Prisma.Decimal }>();
+  const products = new Map<string, { name: string; barcode: string; quantity: number; totalAmount: Prisma.Decimal; grossProfit: Prisma.Decimal }>();
   for (const sale of sales) {
     for (const item of sale.items) {
       const key = item.barcodeSnapshot || item.productNameSnapshot;
@@ -75,10 +75,12 @@ async function summary(start: Date, end: Date) {
         name: item.productNameSnapshot,
         barcode: item.barcodeSnapshot,
         quantity: 0,
-        totalAmount: new Prisma.Decimal(0)
+        totalAmount: new Prisma.Decimal(0),
+        grossProfit: new Prisma.Decimal(0)
       };
       current.quantity += item.quantity;
       current.totalAmount = current.totalAmount.add(item.lineTotal);
+      current.grossProfit = current.grossProfit.add(item.lineProfit);
       products.set(key, current);
     }
   }
@@ -96,7 +98,7 @@ async function summary(start: Date, end: Date) {
     topProducts: [...products.values()]
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10)
-      .map((product) => ({ ...product, totalAmount: Number(product.totalAmount) })),
+      .map((product) => ({ ...product, totalAmount: Number(product.totalAmount), grossProfit: Number(product.grossProfit) })),
     recentSales: sales.slice(0, 10).map((sale) => ({
       id: sale.id,
       receiptNo: sale.receiptNo,

@@ -92,15 +92,18 @@ async function createSale(body: unknown) {
 
   const cashReceived = paymentMethod === "CASH" ? parseCashReceived(checkout.cashReceived) : null;
 
-  return prisma.$transaction(async (tx) => {
-    if (idempotencyKey) {
-      const existing = await tx.sale.findUnique({
-        where: { idempotencyKey },
-        include: { items: true }
-      });
-      if (existing) return existing;
-    }
+  // Check idempotency before opening a transaction
+  if (idempotencyKey) {
+    const existing = await prisma.sale.findUnique({
+      where: { idempotencyKey },
+      include: { items: { include: { itemBatches: true } } }
+    });
+    if (existing) return existing;
+  }
 
+  let saleId: string;
+  try {
+    saleId = await prisma.$transaction(async (tx) => {
     const products = await tx.product.findMany({
       where: { id: { in: items.map((item) => item.productId) } }
     });
@@ -263,13 +266,30 @@ async function createSale(body: unknown) {
       });
     }
 
-    return tx.sale.findUniqueOrThrow({
-      where: { id: sale.id },
-      include: { items: { include: { itemBatches: true } } }
-    });
+    return sale.id;
   }, {
     maxWait: 5000,
     timeout: 15000
+  });
+  } catch (error) {
+    // Race condition: another request already committed with the same idempotencyKey
+    if (
+      idempotencyKey &&
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const existing = await prisma.sale.findUnique({
+        where: { idempotencyKey },
+        include: { items: { include: { itemBatches: true } } }
+      });
+      if (existing) return existing;
+    }
+    throw error;
+  }
+
+  return prisma.sale.findUniqueOrThrow({
+    where: { id: saleId },
+    include: { items: { include: { itemBatches: true } } }
   });
 }
 

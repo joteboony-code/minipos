@@ -90,6 +90,8 @@ async function createSale(body: unknown) {
     throw new Error("กรุณาใส่ชื่อลูกค้าเงินเชื่อ");
   }
 
+  const cashReceived = paymentMethod === "CASH" ? parseCashReceived(checkout.cashReceived) : null;
+
   return prisma.$transaction(async (tx) => {
     if (idempotencyKey) {
       const existing = await tx.sale.findUnique({
@@ -171,7 +173,6 @@ async function createSale(body: unknown) {
     const totalAmount = lines.reduce((sum, line) => sum.add(line.lineTotal), new Prisma.Decimal(0)).toDecimalPlaces(2);
     const totalCost = lines.reduce((sum, line) => sum.add(line.lineCost), new Prisma.Decimal(0)).toDecimalPlaces(2);
     const grossProfit = totalAmount.sub(totalCost).toDecimalPlaces(2);
-    const cashReceived = paymentMethod === "CASH" ? parseCashReceived(checkout.cashReceived) : null;
     const changeAmount = paymentMethod === "CASH" && cashReceived ? cashReceived.sub(totalAmount) : paymentMethod === "CREDIT" ? new Prisma.Decimal(0) : null;
 
     if (cashReceived && cashReceived.lessThan(totalAmount)) {
@@ -266,7 +267,19 @@ async function createSale(body: unknown) {
       where: { id: sale.id },
       include: { items: { include: { itemBatches: true } } }
     });
+  }, {
+    maxWait: 5000,
+    timeout: 15000
   });
+}
+
+function saleLogContext(body: unknown) {
+  const checkout = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  return {
+    paymentMethod: parsePaymentMethod(checkout.paymentMethod),
+    idempotencyKey: typeof checkout.idempotencyKey === "string" && checkout.idempotencyKey.trim() ? checkout.idempotencyKey.trim() : null,
+    itemCount: Array.isArray(checkout.items) ? checkout.items.length : 0
+  };
 }
 
 export async function GET() {
@@ -326,10 +339,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  let body: unknown = null;
   try {
     const session = await getSession();
     const canSeeProfit = session?.role === "OWNER";
-    const body = await request.json();
+    body = await request.json();
     let sale = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -358,6 +372,11 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    console.error("[api/sales] sale sync failed", {
+      ...saleLogContext(body),
+      errorName: error instanceof Error ? error.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error)
+    });
     return NextResponse.json({ error: error instanceof Error ? error.message : "เกิดข้อผิดพลาดฐานข้อมูล" }, { status: 400 });
   }
 }

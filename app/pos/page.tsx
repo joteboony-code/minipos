@@ -530,15 +530,16 @@ export default function PosPage() {
             ) : (
               <div className="divide-y divide-slate-100">
                 {cart.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-1.5">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-black">{item.name}</div>
-                      <div className="mt-0.5 text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
-                      <div className="mt-0.5 text-xs font-bold text-slate-700">{baht(item.salePrice)} x {item.quantity}</div>
+                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1 sm:grid-cols-[minmax(0,1fr)_90px_auto_auto]">
+                    <div className="min-w-0 leading-tight">
+                      <div className="truncate text-sm font-black sm:text-base">{item.name}</div>
+                      <div className="mt-0.5 truncate text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="text-base font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
-                      <div className="flex gap-1">
+                    <div className="hidden text-right text-xs font-bold text-slate-700 sm:block">
+                      {baht(item.salePrice)} x {item.quantity}
+                    </div>
+                    <div className="text-right text-base font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
+                    <div className="col-span-2 flex justify-end gap-1 sm:col-span-1">
                         <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
                           <Minus size={16} />
                         </button>
@@ -555,7 +556,6 @@ export default function PosPage() {
                         >
                           <Trash2 size={16} />
                         </button>
-                      </div>
                     </div>
                   </div>
                 ))}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { recordAuditLog } from "@/lib/audit";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -63,6 +64,15 @@ export async function POST(request: NextRequest) {
         openingCash: new Prisma.Decimal(openingCash),
         status: "OPEN"
       }
+    });
+
+    await recordAuditLog({
+      actorRole: session.role,
+      action: "SHIFT_OPENED",
+      entityType: "CashShift",
+      entityId: shift.id,
+      description: "เปิดกะขาย",
+      metadata: { openingCash: Number(shift.openingCash) }
     });
 
     return NextResponse.json(shift, { status: 201 });

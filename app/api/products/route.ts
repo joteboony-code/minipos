@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordAuditLogForCurrentSession } from "@/lib/audit";
 import { getSession } from "@/lib/auth";
 import { parseProductInput, serializeProduct } from "@/lib/product";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +40,14 @@ export async function POST(request: NextRequest) {
     const product = await prisma.product.create({
       data: parseProductInput(body),
       include: { category: true }
+    });
+
+    await recordAuditLogForCurrentSession({
+      action: "PRODUCT_CREATED",
+      entityType: "Product",
+      entityId: product.id,
+      description: product.name,
+      metadata: { barcode: product.barcode }
     });
 
     return NextResponse.json(serializeProduct(product), { status: 201 });

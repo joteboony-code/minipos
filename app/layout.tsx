@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, BarChart3, Boxes, Clock, CreditCard, DatabaseBackup, FileText, History, Layers, Package, ShoppingCart } from "lucide-react";
+import { AlertTriangle, BarChart3, Boxes, ClipboardList, Clock, CreditCard, DatabaseBackup, FileText, History, Layers, Package, ShoppingCart } from "lucide-react";
 import { getSession, roleLabel, type Role } from "@/lib/auth";
 import { LogoutButton } from "./logout-button";
 import "./globals.css";
@@ -22,6 +22,7 @@ const nav: Array<{ href: string; label: string; icon: typeof BarChart3; roles: R
   { href: "/shifts", label: "กะขาย", icon: Clock, roles: ["OWNER"] },
   { href: "/low-stock", label: "สินค้าใกล้หมด", icon: AlertTriangle, roles: ["OWNER"] },
   { href: "/reports", label: "รายงาน", icon: FileText, roles: ["OWNER"] },
+  { href: "/audit", label: "ประวัติระบบ", icon: ClipboardList, roles: ["OWNER"] },
   { href: "/backup", label: "สำรองข้อมูล", icon: DatabaseBackup, roles: ["OWNER"] }
 ];
 

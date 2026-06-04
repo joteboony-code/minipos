@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import { recordAuditLogForCurrentSession } from "@/lib/audit";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -82,6 +83,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         remainingAmount: due.sub(nextPaid),
         creditStatus: nextStatus
       };
+    });
+
+    await recordAuditLogForCurrentSession({
+      action: "CREDIT_PAYMENT_CREATED",
+      entityType: "Sale",
+      entityId: saleId,
+      description: result.sale.receiptNo,
+      metadata: {
+        paymentId: result.payment.id,
+        amount: Number(result.payment.amount),
+        creditStatus: result.creditStatus,
+        remainingAmount: Number(result.remainingAmount)
+      }
     });
 
     return NextResponse.json({

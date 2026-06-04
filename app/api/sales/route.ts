@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import { recordAuditLog } from "@/lib/audit";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -377,6 +378,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (!sale) throw new Error("สร้างเลขที่ใบเสร็จไม่สำเร็จ");
+
+    const context = saleLogContext(body);
+    await recordAuditLog({
+      actorRole: session?.role ?? null,
+      action: context.idempotencyKey ? "SALE_SYNCED" : "SALE_CREATED",
+      entityType: "Sale",
+      entityId: sale.id,
+      description: sale.receiptNo,
+      metadata: {
+        paymentMethod: sale.paymentMethod,
+        receiptNo: sale.receiptNo,
+        totalAmount: Number(sale.totalAmount),
+        itemCount: context.itemCount,
+        idempotencyKey: context.idempotencyKey
+      }
+    });
 
     return NextResponse.json(
       {

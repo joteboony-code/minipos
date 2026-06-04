@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordAuditLogForCurrentSession } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -96,6 +97,20 @@ export async function POST(request: NextRequest) {
         },
         include: { product: true }
       });
+    });
+
+    await recordAuditLogForCurrentSession({
+      action: type === "RECEIVE" ? "STOCK_RECEIVED" : "STOCK_ADJUSTED",
+      entityType: "Product",
+      entityId: productId,
+      description: result.product.name,
+      metadata: {
+        type,
+        quantityChange: result.quantityChange,
+        beforeQty: result.beforeQty,
+        afterQty: result.afterQty,
+        note: result.note
+      }
     });
 
     return NextResponse.json(result, { status: 201 });

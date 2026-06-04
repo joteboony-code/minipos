@@ -172,3 +172,18 @@ model CashShift {
   @@index([status])
   @@index([openedAt])
 }
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorRole   String?
+  action      String
+  entityType  String
+  entityId    String?
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([entityType])
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { recordAuditLogForCurrentSession } from "@/lib/audit";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -41,6 +42,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         totalSales: new Prisma.Decimal(totalSales),
         billCount: sales.length,
         note: typeof body.note === "string" && body.note.trim() ? body.note.trim() : null
+      }
+    });
+
+    await recordAuditLogForCurrentSession({
+      action: "SHIFT_CLOSED",
+      entityType: "CashShift",
+      entityId: closed.id,
+      description: "ปิดกะขาย",
+      metadata: {
+        closingCash: Number(closed.closingCash ?? 0),
+        expectedCash: Number(closed.expectedCash ?? 0),
+        totalSales: Number(closed.totalSales),
+        billCount: closed.billCount
       }
     });
 

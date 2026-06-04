@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordAuditLogForCurrentSession } from "@/lib/audit";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -52,6 +53,13 @@ export async function GET(request: NextRequest) {
         orderBy: { name: "asc" }
       });
 
+      await recordAuditLogForCurrentSession({
+        action: "BACKUP_EXPORTED",
+        entityType: "Backup",
+        description: "ส่งออกข้อมูลสินค้า",
+        metadata: { type: "products", count: products.length }
+      });
+
       return csvResponse(
         `products-${stamp}.csv`,
         ["บาร์โค้ด", "ชื่อสินค้า", "หมวดหมู่", "ราคาทุน", "ราคาขาย", "สต๊อก", "หน่วย", "แจ้งเตือนใกล้หมด", "เปิดใช้งาน", "ปุ่มขายด่วน"],
@@ -74,6 +82,13 @@ export async function GET(request: NextRequest) {
       const sales = await prisma.sale.findMany({
         include: { items: true },
         orderBy: { createdAt: "desc" }
+      });
+
+      await recordAuditLogForCurrentSession({
+        action: "BACKUP_EXPORTED",
+        entityType: "Backup",
+        description: "ส่งออกยอดขาย",
+        metadata: { type: "sales", count: sales.length }
       });
 
       return csvResponse(
@@ -105,6 +120,13 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: "desc" }
       });
 
+      await recordAuditLogForCurrentSession({
+        action: "BACKUP_EXPORTED",
+        entityType: "Backup",
+        description: "ส่งออกสต๊อก",
+        metadata: { type: "stock", count: movements.length }
+      });
+
       return csvResponse(
         `stock-movements-${stamp}.csv`,
         ["วันที่/เวลา", "ชื่อสินค้า", "บาร์โค้ด", "ประเภท", "จำนวนเปลี่ยนแปลง", "ก่อน", "หลัง", "หมายเหตุ"],
@@ -132,6 +154,20 @@ export async function GET(request: NextRequest) {
       prisma.creditPayment.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.cashShift.findMany({ orderBy: { openedAt: "desc" } })
     ]);
+
+    await recordAuditLogForCurrentSession({
+      action: "BACKUP_EXPORTED",
+      entityType: "Backup",
+      description: "ส่งออกข้อมูลทั้งหมด",
+      metadata: {
+        type: "full",
+        categories: categories.length,
+        products: products.length,
+        sales: sales.length,
+        stockMovements: stockMovements.length,
+        cashShifts: cashShifts.length
+      }
+    });
 
     return jsonResponse(`minimart-pos-backup-${stamp}.json`, {
       exportedAt: new Date().toISOString(),

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordAuditLogForCurrentSession } from "@/lib/audit";
 import { parseProductInput, serializeProduct } from "@/lib/product";
 import { prisma } from "@/lib/prisma";
 
@@ -10,6 +11,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       where: { id },
       data: parseProductInput(body),
       include: { category: true }
+    });
+
+    await recordAuditLogForCurrentSession({
+      action: "PRODUCT_UPDATED",
+      entityType: "Product",
+      entityId: product.id,
+      description: product.name,
+      metadata: { barcode: product.barcode }
     });
 
     return NextResponse.json(serializeProduct(product));
@@ -26,6 +35,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       where: { id },
       data: { isActive: Boolean(body.isActive) },
       include: { category: true }
+    });
+
+    await recordAuditLogForCurrentSession({
+      action: "PRODUCT_UPDATED",
+      entityType: "Product",
+      entityId: product.id,
+      description: product.name,
+      metadata: { barcode: product.barcode, isActive: product.isActive }
     });
 
     return NextResponse.json(serializeProduct(product));

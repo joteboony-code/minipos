@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle, Minus, Plus, Search, Trash2 } from "lucide-react";
@@ -23,6 +23,7 @@ type Product = LocalProduct;
 
 type CartItem = Product & { quantity: number };
 type PromptPayState = { configured: boolean; qrDataUrl?: string; message?: string };
+type PosSettings = { enableCreditSales: boolean; requireOpenShiftBeforeSale: boolean };
 type SaleSuccess = {
   localId?: string;
   receiptNo: string;
@@ -67,6 +68,7 @@ export default function PosPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quickSaleProducts, setQuickSaleProducts] = useState<Product[]>([]);
+  const [quickSaleCategoryId, setQuickSaleCategoryId] = useState("all");
   const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewSearchedQuery, setPreviewSearchedQuery] = useState("");
@@ -80,16 +82,30 @@ export default function PosPage() {
   const [successSale, setSuccessSale] = useState<SaleSuccess | null>(null);
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(true);
-  const [cacheStatus, setCacheStatus] = useState("กำลังโหลดข้อมูลสินค้าในเครื่อง");
+  const [cacheStatus, setCacheStatus] = useState("เธเธณเธฅเธฑเธเนเธซเธฅเธ”เธเนเธญเธกเธนเธฅเธชเธดเธเธเนเธฒเนเธเน€เธเธฃเธทเนเธญเธ");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [pendingSyncError, setPendingSyncError] = useState("");
   const [lastSyncAt, setLastSyncAt] = useState("");
   const [syncBusy, setSyncBusy] = useState(false);
   const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
+  const [settings, setSettings] = useState<PosSettings>({ enableCreditSales: true, requireOpenShiftBeforeSale: false });
 
   useEffect(() => {
     inputRef.current?.focus();
+    fetch("/api/settings")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data) setSettings({
+          enableCreditSales: data.enableCreditSales !== false,
+          requireOpenShiftBeforeSale: Boolean(data.requireOpenShiftBeforeSale)
+        });
+      })
+      .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!settings.enableCreditSales && paymentMethod === "CREDIT") setPaymentMethod("CASH");
+  }, [paymentMethod, settings.enableCreditSales]);
 
   const refreshSyncStatus = useCallback(() => {
     getPendingSyncSummary()
@@ -112,20 +128,20 @@ export default function PosPage() {
     const hasCache = cachedProducts.length > 0;
     if (hasCache) {
       setProducts(cachedProducts);
-      setCacheStatus("โหลดข้อมูลสินค้าในเครื่องแล้ว");
+      setCacheStatus("เนเธซเธฅเธ”เธเนเธญเธกเธนเธฅเธชเธดเธเธเนเธฒเนเธเน€เธเธฃเธทเนเธญเธเนเธฅเนเธง");
     }
 
     if (!navigator.onLine) {
       setOnline(false);
-      setCacheStatus(hasCache ? "ใช้ข้อมูลในเครื่อง" : "ยังไม่มีข้อมูลสินค้าในเครื่อง กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดข้อมูลครั้งแรก");
+      setCacheStatus(hasCache ? "เนเธเนเธเนเธญเธกเธนเธฅเนเธเน€เธเธฃเธทเนเธญเธ" : "เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธชเธดเธเธเนเธฒเนเธเน€เธเธฃเธทเนเธญเธ เธเธฃเธธเธ“เธฒเน€เธเธทเนเธญเธกเธ•เนเธญเธญเธดเธเน€เธ—เธญเธฃเนเน€เธเนเธ•เน€เธเธทเนเธญเนเธซเธฅเธ”เธเนเธญเธกเธนเธฅเธเธฃเธฑเนเธเนเธฃเธ");
       return;
     }
 
     try {
-      setCacheStatus("กำลังอัปเดตข้อมูลจาก Cloud");
+      setCacheStatus("เธเธณเธฅเธฑเธเธญเธฑเธเน€เธ”เธ•เธเนเธญเธกเธนเธฅเธเธฒเธ Cloud");
       const res = await fetch("/api/products");
       const cloudProducts = await res.json();
-      if (!res.ok || !Array.isArray(cloudProducts)) throw new Error("โหลดสินค้าไม่สำเร็จ");
+      if (!res.ok || !Array.isArray(cloudProducts)) throw new Error("เนเธซเธฅเธ”เธชเธดเธเธเนเธฒเนเธกเนเธชเธณเน€เธฃเนเธ");
       const pendingCount = await getPendingSyncCount();
       const localById = new Map(cachedProducts.map((product) => [product.id, product]));
       const merged = (cloudProducts as Product[]).map((product) => {
@@ -134,15 +150,15 @@ export default function PosPage() {
       });
       await putLocalProducts(merged);
       setProducts(merged);
-      setCacheStatus("โหลดข้อมูลสินค้าในเครื่องแล้ว");
+      setCacheStatus("เนเธซเธฅเธ”เธเนเธญเธกเธนเธฅเธชเธดเธเธเนเธฒเนเธเน€เธเธฃเธทเนเธญเธเนเธฅเนเธง");
     } catch {
-      setCacheStatus(hasCache ? "ใช้ข้อมูลในเครื่อง" : "ยังไม่มีข้อมูลสินค้าในเครื่อง กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดข้อมูลครั้งแรก");
+      setCacheStatus(hasCache ? "เนเธเนเธเนเธญเธกเธนเธฅเนเธเน€เธเธฃเธทเนเธญเธ" : "เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธชเธดเธเธเนเธฒเนเธเน€เธเธฃเธทเนเธญเธ เธเธฃเธธเธ“เธฒเน€เธเธทเนเธญเธกเธ•เนเธญเธญเธดเธเน€เธ—เธญเธฃเนเน€เธเนเธ•เน€เธเธทเนเธญเนเธซเธฅเธ”เธเนเธญเธกเธนเธฅเธเธฃเธฑเนเธเนเธฃเธ");
     }
   }, []);
 
   useEffect(() => {
     setOnline(navigator.onLine);
-    loadProductCache().catch(() => setCacheStatus("ใช้ข้อมูลในเครื่อง"));
+    loadProductCache().catch(() => setCacheStatus("เนเธเนเธเนเธญเธกเธนเธฅเนเธเน€เธเธฃเธทเนเธญเธ"));
     refreshSyncStatus();
     const onOnline = () => {
       setOnline(true);
@@ -151,7 +167,7 @@ export default function PosPage() {
     };
     const onOffline = () => {
       setOnline(false);
-      setCacheStatus("ใช้ข้อมูลในเครื่อง");
+      setCacheStatus("เนเธเนเธเนเธญเธกเธนเธฅเนเธเน€เธเธฃเธทเนเธญเธ");
     };
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
@@ -178,6 +194,17 @@ export default function PosPage() {
   const enterProduct = previewExactProduct ?? (previewProducts.length === 1 ? previewProducts[0] : null);
   const isNumericSearch = /^\d+$/.test(trimmedQuery);
   const showNoPreviewResult = trimmedQuery !== "" && !previewLoading && previewSearchedQuery === trimmedQuery && previewProducts.length === 0;
+  const quickSaleCategories = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const product of quickSaleProducts) {
+      if (product.categoryId && product.category?.name) byId.set(product.categoryId, product.category.name);
+    }
+    return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "th"));
+  }, [quickSaleProducts]);
+  const filteredQuickSaleProducts = useMemo(
+    () => quickSaleCategoryId === "all" ? quickSaleProducts : quickSaleProducts.filter((product) => product.categoryId === quickSaleCategoryId),
+    [quickSaleCategoryId, quickSaleProducts]
+  );
 
   useEffect(() => {
     if (paymentMethod !== "TRANSFER" || total <= 0) {
@@ -190,7 +217,7 @@ export default function PosPage() {
       .then((res) => res.json())
       .then(setPromptPay)
       .catch(() => {
-        if (!controller.signal.aborted) setPromptPay({ configured: false, message: "โหลด QR พร้อมเพย์ไม่สำเร็จ" });
+        if (!controller.signal.aborted) setPromptPay({ configured: false, message: "เนเธซเธฅเธ” QR เธเธฃเนเธญเธกเน€เธเธขเนเนเธกเนเธชเธณเน€เธฃเนเธ" });
       });
 
     return () => controller.abort();
@@ -221,13 +248,13 @@ export default function PosPage() {
   }, [products, query]);
 
   function addProduct(product: Product) {
-    if (!product.isActive) return setMessage("สินค้าถูกปิดการขาย");
+    if (!product.isActive) return setMessage("เธชเธดเธเธเนเธฒเธ–เธนเธเธเธดเธ”เธเธฒเธฃเธเธฒเธข");
     const found = cart.find((item) => item.id === product.id);
     if (found && found.quantity + 1 > product.stockQty) {
-      return setMessage("สต็อกไม่พอสำหรับสินค้านี้");
+      return setMessage("เธชเธ•เนเธญเธเนเธกเนเธเธญเธชเธณเธซเธฃเธฑเธเธชเธดเธเธเนเธฒเธเธตเน");
     }
     if (!found && product.stockQty < 1) {
-      return setMessage("สต๊อกหมด");
+      return setMessage("เธชเธ•เนเธญเธเธซเธกเธ”");
     }
     setCart((items) =>
       found
@@ -252,13 +279,13 @@ export default function PosPage() {
             body: JSON.stringify(item.payload)
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error ?? "ซิงก์ Cloud ไม่สำเร็จ");
+          if (!res.ok) throw new Error(data.error ?? "เธเธดเธเธเน Cloud เนเธกเนเธชเธณเน€เธฃเนเธ");
           await markSaleSynced(item.id, data.id, data.receiptNo);
           setSuccessSale((current) => current && item.id === current.localId ? { ...current, syncStatus: "SYNCED", cloudReceiptNo: data.receiptNo } : current);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "ซิงก์ Cloud ไม่สำเร็จ";
+          const errorMessage = error instanceof Error ? error.message : "เธเธดเธเธเน Cloud เนเธกเนเธชเธณเน€เธฃเนเธ";
           await markSaleSyncFailed(item.id, errorMessage);
-          setMessage(`ซิงก์ Cloud ไม่สำเร็จ: ${errorMessage}`);
+          setMessage(`เธเธดเธเธเน Cloud เนเธกเนเธชเธณเน€เธฃเนเธ: ${errorMessage}`);
           setSuccessSale((current) => current && item.id === current.localId ? { ...current, syncStatus: "FAILED" } : current);
         }
       }
@@ -280,9 +307,9 @@ export default function PosPage() {
   }
 
   function productStatus(product: Product) {
-    if (!product.isActive) return { label: "สินค้าถูกปิดการขาย", className: "bg-red-50 text-red-700" };
-    if (product.stockQty <= 0) return { label: "สต๊อกหมด", className: "bg-red-50 text-red-700" };
-    return { label: `คงเหลือ ${product.stockQty} ${product.unit}`, className: "bg-emerald-50 text-emerald-700" };
+    if (!product.isActive) return { label: "เธชเธดเธเธเนเธฒเธ–เธนเธเธเธดเธ”เธเธฒเธฃเธเธฒเธข", className: "bg-red-50 text-red-700" };
+    if (product.stockQty <= 0) return { label: "เธชเธ•เนเธญเธเธซเธกเธ”", className: "bg-red-50 text-red-700" };
+    return { label: `เธเธเน€เธซเธฅเธทเธญ ${product.stockQty} ${product.unit}`, className: "bg-emerald-50 text-emerald-700" };
   }
 
   async function handleSearch(event: React.FormEvent) {
@@ -300,11 +327,11 @@ export default function PosPage() {
     const exactProduct = sortedProducts.find((product) => product.barcode === keyword);
     const productToAdd = exactProduct ?? (sortedProducts.length === 1 ? sortedProducts[0] : null);
     if (sortedProducts.length === 0) {
-      setMessage("ไม่พบสินค้า");
+      setMessage("เนเธกเนเธเธเธชเธดเธเธเนเธฒ");
     } else if (!productToAdd) {
       setPreviewProducts(sortedProducts);
       setPreviewSearchedQuery(keyword);
-      setMessage(isBarcode ? "เลือกสินค้าใกล้เคียงก่อนเพิ่ม" : "เลือกสินค้าที่ต้องการก่อนเพิ่ม");
+      setMessage(isBarcode ? "เน€เธฅเธทเธญเธเธชเธดเธเธเนเธฒเนเธเธฅเนเน€เธเธตเธขเธเธเนเธญเธเน€เธเธดเนเธก" : "เน€เธฅเธทเธญเธเธชเธดเธเธเนเธฒเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเธเนเธญเธเน€เธเธดเนเธก");
     } else {
       addProduct(productToAdd);
       setQuery("");
@@ -324,7 +351,7 @@ export default function PosPage() {
       items.map((item) => {
         if (item.id !== id) return item;
         const next = item.quantity + delta;
-        if (next > item.stockQty) setMessage("สต็อกไม่พอสำหรับสินค้านี้");
+        if (next > item.stockQty) setMessage("เธชเธ•เนเธญเธเนเธกเนเธเธญเธชเธณเธซเธฃเธฑเธเธชเธดเธเธเนเธฒเธเธตเน");
         return { ...item, quantity: Math.min(Math.max(next, 1), item.stockQty) };
       })
     );
@@ -343,7 +370,7 @@ export default function PosPage() {
       return;
     }
     if (parsed > item.stockQty) {
-      setMessage(`สต๊อกคงเหลือไม่พอ (มี ${item.stockQty} ${item.unit})`);
+      setMessage(`เธชเธ•เนเธญเธเธเธเน€เธซเธฅเธทเธญเนเธกเนเธเธญ (เธกเธต ${item.stockQty} ${item.unit})`);
     }
     const clamped = Math.min(parsed, item.stockQty);
     setCart((items) => items.map((i) => (i.id === item.id ? { ...i, quantity: clamped } : i)));
@@ -356,11 +383,11 @@ export default function PosPage() {
 
   async function completeSale() {
     if (saleSubmittingRef.current) return;
-    if (cart.length === 0) return setMessage("ไม่มีสินค้าในตะกร้า");
-    if (paymentMethod === "CASH" && cashReceived.trim() === "") return setMessage("กรุณาระบุเงินสดที่รับมา");
-    if (paymentMethod === "CASH" && !Number.isFinite(cashAmount)) return setMessage("จำนวนเงินสดไม่ถูกต้อง");
-    if (paymentMethod === "CASH" && cashAmount < total) return setMessage("เงินรับน้อยกว่ายอดรวม");
-    if (paymentMethod === "CREDIT" && creditCustomerName.trim() === "") return setMessage("กรุณาใส่ชื่อลูกค้าเงินเชื่อ");
+    if (cart.length === 0) return setMessage("เนเธกเนเธกเธตเธชเธดเธเธเนเธฒเนเธเธ•เธฐเธเธฃเนเธฒ");
+    if (paymentMethod === "CASH" && cashReceived.trim() === "") return setMessage("เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเน€เธเธดเธเธชเธ”เธ—เธตเนเธฃเธฑเธเธกเธฒ");
+    if (paymentMethod === "CASH" && !Number.isFinite(cashAmount)) return setMessage("เธเธณเธเธงเธเน€เธเธดเธเธชเธ”เนเธกเนเธ–เธนเธเธ•เนเธญเธ");
+    if (paymentMethod === "CASH" && cashAmount < total) return setMessage("เน€เธเธดเธเธฃเธฑเธเธเนเธญเธขเธเธงเนเธฒเธขเธญเธ”เธฃเธงเธก");
+    if (paymentMethod === "CREDIT" && creditCustomerName.trim() === "") return setMessage("เธเธฃเธธเธ“เธฒเนเธชเนเธเธทเนเธญเธฅเธนเธเธเนเธฒเน€เธเธดเธเน€เธเธทเนเธญ");
     saleSubmittingRef.current = true;
     setBusy(true);
     try {
@@ -368,7 +395,7 @@ export default function PosPage() {
       const localProductMap = new Map(localProducts.map((product) => [product.id, product]));
       const localCart = cart.map((item) => ({ ...(localProductMap.get(item.id) ?? item), quantity: item.quantity }));
       for (const item of localCart) {
-        if (item.stockQty < item.quantity) throw new Error(`${item.name} มีสต็อกในเครื่องไม่พอ`);
+        if (item.stockQty < item.quantity) throw new Error(`${item.name} เธกเธตเธชเธ•เนเธญเธเนเธเน€เธเธฃเธทเนเธญเธเนเธกเนเธเธญ`);
       }
       const localSaved = await saveLocalSale({
         cart: localCart,
@@ -398,11 +425,11 @@ export default function PosPage() {
       setCreditCustomerName("");
       setCreditCustomerPhone("");
       setCreditNote("");
-      setMessage(`บันทึกในเครื่องแล้ว ${localSaved.sale.receiptNo}`);
+      setMessage(`เธเธฑเธเธ—เธถเธเนเธเน€เธเธฃเธทเนเธญเธเนเธฅเนเธง ${localSaved.sale.receiptNo}`);
       refreshSyncStatus();
       if (navigator.onLine) window.setTimeout(() => syncPendingSales(), 0);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "บันทึกในเครื่องไม่สำเร็จ");
+      setMessage(error instanceof Error ? error.message : "เธเธฑเธเธ—เธถเธเนเธเน€เธเธฃเธทเนเธญเธเนเธกเนเธชเธณเน€เธฃเนเธ");
     } finally {
       saleSubmittingRef.current = false;
       setBusy(false);
@@ -430,25 +457,27 @@ export default function PosPage() {
   function renderPaymentPanel() {
     return (
       <div className="card p-3">
-        <div className="text-xl font-black">รับชำระเงิน</div>
+        <div className="text-xl font-black">เธฃเธฑเธเธเธณเธฃเธฐเน€เธเธดเธ</div>
         <div className="mt-2 grid grid-cols-3 gap-2">
           <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CASH")} type="button">
-            เงินสด
+            เน€เธเธดเธเธชเธ”
           </button>
           <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("TRANSFER")} type="button">
-            รับโอน
+            เธฃเธฑเธเนเธญเธ
           </button>
-          <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "CREDIT" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CREDIT")} type="button">
-            เงินเชื่อ
-          </button>
+          {settings.enableCreditSales && (
+            <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "CREDIT" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CREDIT")} type="button">
+              เน€เธเธดเธเน€เธเธทเนเธญ
+            </button>
+          )}
         </div>
         <div className="mt-2 rounded-lg bg-slate-100 p-3">
-          <div className="text-sm font-black text-slate-600">ยอดรวม</div>
+          <div className="text-sm font-black text-slate-600">เธขเธญเธ”เธฃเธงเธก</div>
           <div className="text-3xl font-black text-teal-700">{baht(total)}</div>
         </div>
         {paymentMethod === "CASH" && (
           <div className="mt-2 space-y-1.5">
-            <label className="font-black">รับเงิน</label>
+            <label className="font-black">เธฃเธฑเธเน€เธเธดเธ</label>
             <input
               className="field min-h-12 text-xl"
               value={cashReceived}
@@ -460,10 +489,10 @@ export default function PosPage() {
               step="0.01"
             />
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <div className="mb-1.5 text-sm font-black text-slate-700">รับเงินด่วน</div>
+              <div className="mb-1.5 text-sm font-black text-slate-700">เธฃเธฑเธเน€เธเธดเธเธ”เนเธงเธ</div>
               <div className="grid grid-cols-4 gap-1.5">
                 <button className={quickCashButtonClass(total)} disabled={busy || total <= 0} onClick={() => setQuickCashAmount(total)} type="button">
-                  พอดี
+                  เธเธญเธ”เธต
                 </button>
                 {quickCashAmounts.map((amount) => (
                   <button key={amount} className={quickCashButtonClass(amount)} disabled={busy} onClick={() => setQuickCashAmount(amount)} type="button">
@@ -472,45 +501,45 @@ export default function PosPage() {
                 ))}
               </div>
             </div>
-            {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
+            {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เน€เธเธดเธเธฃเธฑเธเธเนเธญเธขเธเธงเนเธฒเธขเธญเธ”เธฃเธงเธก</div>}
             <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-3">
-              <div className="font-black text-emerald-800">เงินทอน</div>
+              <div className="font-black text-emerald-800">เน€เธเธดเธเธ—เธญเธ</div>
               <div className="text-3xl font-black text-emerald-700">{baht(change)}</div>
             </div>
           </div>
         )}
         {paymentMethod === "TRANSFER" && (
           <div className="mt-2 rounded-lg border-2 border-blue-100 bg-blue-50 p-3 text-center">
-            <div className="text-lg font-black text-blue-900">QR พร้อมเพย์</div>
-            <div className="font-black text-blue-700">ยอดโอน {baht(total)}</div>
+            <div className="text-lg font-black text-blue-900">QR เธเธฃเนเธญเธกเน€เธเธขเน</div>
+            <div className="font-black text-blue-700">เธขเธญเธ”เนเธญเธ {baht(total)}</div>
             {promptPay?.configured && promptPay.qrDataUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img className="mx-auto mt-2 max-h-44 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
+              <img className="mx-auto mt-2 max-h-44 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR เธเธฃเนเธญเธกเน€เธเธขเน" />
             ) : (
-              <div className="mt-2 rounded-lg bg-white p-2 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
+              <div className="mt-2 rounded-lg bg-white p-2 font-bold text-slate-600">{promptPay?.message ?? "เธขเธฑเธเนเธกเนเนเธ”เนเธ•เธฑเนเธเธเนเธฒเน€เธฅเธเธเธฃเนเธญเธกเน€เธเธขเน"}</div>
             )}
           </div>
         )}
         {paymentMethod === "CREDIT" && (
           <div className="mt-2 space-y-2 rounded-lg border-2 border-amber-100 bg-amber-50 p-3">
-            <div className="text-lg font-black text-amber-900">เงินเชื่อ</div>
+            <div className="text-lg font-black text-amber-900">เน€เธเธดเธเน€เธเธทเนเธญ</div>
             <label className="block space-y-1">
-              <span className="font-black">ชื่อลูกค้า</span>
+              <span className="font-black">เธเธทเนเธญเธฅเธนเธเธเนเธฒ</span>
               <input className="field min-h-11 text-base" value={creditCustomerName} onChange={(event) => setCreditCustomerName(event.target.value)} disabled={busy} />
             </label>
             <label className="block space-y-1">
-              <span className="font-black">เบอร์โทร (ไม่บังคับ)</span>
+              <span className="font-black">เน€เธเธญเธฃเนเนเธ—เธฃ (เนเธกเนเธเธฑเธเธเธฑเธ)</span>
               <input className="field min-h-11 text-base" value={creditCustomerPhone} onChange={(event) => setCreditCustomerPhone(event.target.value)} disabled={busy} />
             </label>
             <label className="block space-y-1">
-              <span className="font-black">หมายเหตุ (ไม่บังคับ)</span>
+              <span className="font-black">เธซเธกเธฒเธขเน€เธซเธ•เธธ (เนเธกเนเธเธฑเธเธเธฑเธ)</span>
               <input className="field min-h-11 text-base" value={creditNote} onChange={(event) => setCreditNote(event.target.value)} disabled={busy} />
             </label>
-            {creditNameMissing && <div className="rounded-lg border-2 border-amber-300 bg-white p-2 font-black text-amber-800">กรุณาใส่ชื่อลูกค้าเงินเชื่อ</div>}
+            {creditNameMissing && <div className="rounded-lg border-2 border-amber-300 bg-white p-2 font-black text-amber-800">เธเธฃเธธเธ“เธฒเนเธชเนเธเธทเนเธญเธฅเธนเธเธเนเธฒเน€เธเธดเธเน€เธเธทเนเธญ</div>}
           </div>
         )}
         <button className="btn btn-primary mt-3 w-full py-3 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
-          {busy ? "กำลังบันทึก..." : "บันทึกการขาย"}
+          {busy ? "เธเธณเธฅเธฑเธเธเธฑเธเธ—เธถเธ..." : "เธเธฑเธเธ—เธถเธเธเธฒเธฃเธเธฒเธข"}
         </button>
         <button
           className="btn btn-light mt-2 w-full py-2 text-base"
@@ -522,7 +551,7 @@ export default function PosPage() {
           disabled={busy}
           type="button"
         >
-          ยกเลิกตะกร้า
+          เธขเธเน€เธฅเธดเธเธ•เธฐเธเธฃเนเธฒ
         </button>
       </div>
     );
@@ -532,11 +561,11 @@ export default function PosPage() {
     if (!trimmedQuery) return null;
 
     if (previewLoading) {
-      return <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-slate-500">กำลังค้นหาสินค้า...</div>;
+      return <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-slate-500">เธเธณเธฅเธฑเธเธเนเธเธซเธฒเธชเธดเธเธเนเธฒ...</div>;
     }
 
     if (showNoPreviewResult) {
-      return <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-black text-amber-800">{isNumericSearch ? "ไม่พบสินค้าใกล้เคียง" : "ไม่พบสินค้า"}</div>;
+      return <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-black text-amber-800">{isNumericSearch ? "เนเธกเนเธเธเธชเธดเธเธเนเธฒเนเธเธฅเนเน€เธเธตเธขเธ" : "เนเธกเนเธเธเธชเธดเธเธเนเธฒ"}</div>;
     }
 
     if (previewProducts.length === 0) return null;
@@ -551,11 +580,11 @@ export default function PosPage() {
           disabled={busy}
           type="button"
         >
-          <div className="text-sm font-black text-teal-800">สินค้าที่พบ</div>
+          <div className="text-sm font-black text-teal-800">เธชเธดเธเธเนเธฒเธ—เธตเนเธเธ</div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-lg font-black text-slate-950">{product.name}</span>
             <span className="text-sm font-bold text-slate-500">{product.barcode}</span>
-            <span className="text-lg font-black text-teal-700">ราคา {baht(product.salePrice)}</span>
+            <span className="text-lg font-black text-teal-700">เธฃเธฒเธเธฒ {baht(product.salePrice)}</span>
             <span className={`rounded-md px-2 py-1 text-sm font-black ${status.className}`}>{status.label}</span>
           </div>
         </button>
@@ -564,7 +593,7 @@ export default function PosPage() {
 
     return (
       <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-sm font-black text-slate-600">{isNumericSearch ? "สินค้าใกล้เคียง" : "สินค้าที่พบ"}</div>
+        <div className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-sm font-black text-slate-600">{isNumericSearch ? "เธชเธดเธเธเนเธฒเนเธเธฅเนเน€เธเธตเธขเธ" : "เธชเธดเธเธเนเธฒเธ—เธตเนเธเธ"}</div>
         <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
           {previewProducts.slice(0, 8).map((product) => {
             const status = productStatus(product);
@@ -581,7 +610,7 @@ export default function PosPage() {
                   <div className="text-xs font-bold text-slate-500">{product.barcode}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-black text-teal-700">ราคา {baht(product.salePrice)}</div>
+                  <div className="font-black text-teal-700">เธฃเธฒเธเธฒ {baht(product.salePrice)}</div>
                   <div className={`mt-1 rounded-md px-2 py-0.5 text-xs font-black ${status.className}`}>{status.label}</div>
                 </div>
               </button>
@@ -596,16 +625,16 @@ export default function PosPage() {
     <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_500px]">
       <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-black">ขายสินค้า</h1>
-          <p className="mt-1 font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
+          <h1 className="text-2xl font-black">เธเธฒเธขเธชเธดเธเธเนเธฒ</h1>
+          <p className="mt-1 font-bold text-slate-600">เธชเนเธเธเธเธฒเธฃเนเนเธเนเธ”เธซเธฃเธทเธญเธเธดเธกเธเนเธเธทเนเธญเธชเธดเธเธเนเธฒ เนเธฅเนเธงเธเธ” Enter</p>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black">
-            <span className={`rounded-md px-2 py-1 ${online ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{online ? "ออนไลน์" : "ออฟไลน์"}</span>
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">รอซิงก์ {pendingSyncCount} รายการ</span>
-            {pendingSyncError && <span className="rounded-md bg-red-50 px-2 py-1 text-red-700">ซิงก์ล่าสุด: {pendingSyncError}</span>}
+            <span className={`rounded-md px-2 py-1 ${online ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{online ? "เธญเธญเธเนเธฅเธเน" : "เธญเธญเธเนเธฅเธเน"}</span>
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">เธฃเธญเธเธดเธเธเน {pendingSyncCount} เธฃเธฒเธขเธเธฒเธฃ</span>
+            {pendingSyncError && <span className="rounded-md bg-red-50 px-2 py-1 text-red-700">เธเธดเธเธเนเธฅเนเธฒเธชเธธเธ”: {pendingSyncError}</span>}
             <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">{cacheStatus}</span>
-            {lastSyncAt && <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">ซิงก์ล่าสุด: {new Date(lastSyncAt).toLocaleString("th-TH")}</span>}
+            {lastSyncAt && <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">เธเธดเธเธเนเธฅเนเธฒเธชเธธเธ”: {new Date(lastSyncAt).toLocaleString("th-TH")}</span>}
             <button className="rounded-md bg-teal-600 px-3 py-1 text-white disabled:opacity-50" disabled={!online || syncBusy} onClick={syncPendingSales} type="button">
-              {syncBusy ? "กำลังซิงก์ Cloud" : "ซิงก์ข้อมูลตอนนี้"}
+              {syncBusy ? "เธเธณเธฅเธฑเธเธเธดเธเธเน Cloud" : "เธเธดเธเธเนเธเนเธญเธกเธนเธฅเธ•เธญเธเธเธตเน"}
             </button>
           </div>
         </div>
@@ -618,12 +647,12 @@ export default function PosPage() {
                 className="field min-h-14 pl-12 text-xl"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
+                placeholder="เธชเนเธเธเธเธฒเธฃเนเนเธเนเธ” เธซเธฃเธทเธญเธเธดเธกเธเนเธเธทเนเธญเธชเธดเธเธเนเธฒ"
                 disabled={busy}
               />
             </div>
             <button className="btn btn-primary min-h-14 min-w-32 text-xl" disabled={busy} type="submit">
-              เพิ่ม
+              เน€เธเธดเนเธก
             </button>
           </div>
           {renderProductPreview()}
@@ -631,26 +660,26 @@ export default function PosPage() {
         <div className="xl:hidden">{renderPaymentPanel()}</div>
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-            <div className="text-xl font-black">ตะกร้าสินค้า</div>
-            <div className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">{cart.length} รายการ</div>
+            <div className="text-xl font-black">เธ•เธฐเธเธฃเนเธฒเธชเธดเธเธเนเธฒ</div>
+            <div className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">{cart.length} เธฃเธฒเธขเธเธฒเธฃ</div>
           </div>
           <div className="max-h-[36vh] min-h-28 overflow-y-auto xl:max-h-[42vh]">
             {cart.length === 0 ? (
-              <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
+              <div className="px-4 py-6 text-center font-bold text-slate-500">เธขเธฑเธเนเธกเนเธกเธตเธชเธดเธเธเนเธฒเนเธเธ•เธฐเธเธฃเนเธฒ</div>
             ) : (
               <div className="divide-y divide-slate-100">
                 {cart.map((item) => (
                   <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1 sm:grid-cols-[minmax(0,1fr)_90px_auto_auto]">
                     <div className="min-w-0 leading-tight">
                       <div className="truncate text-sm font-black sm:text-base">{item.name}</div>
-                      <div className="mt-0.5 truncate text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
+                      <div className="mt-0.5 truncate text-xs font-bold text-slate-500">{item.barcode} | เธเธเน€เธซเธฅเธทเธญ {item.stockQty}</div>
                     </div>
                     <div className="hidden text-right text-xs font-bold text-slate-700 sm:block">
                       {baht(item.salePrice)} x {item.quantity}
                     </div>
                     <div className="text-right text-base font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
                     <div className="col-span-2 flex justify-end gap-1 sm:col-span-1">
-                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
+                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, -1)} type="button" title="เธฅเธ”เธเธณเธเธงเธ">
                           <Minus size={16} />
                         </button>
                         <input
@@ -663,9 +692,9 @@ export default function PosPage() {
                           onChange={(e) => setQtyDraft((prev) => ({ ...prev, [item.id]: e.target.value }))}
                           onBlur={() => commitQty(item)}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
-                          title={`จำนวน (สูงสุด ${item.stockQty})`}
+                          title={`เธเธณเธเธงเธ (เธชเธนเธเธชเธธเธ” ${item.stockQty})`}
                         />
-                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
+                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, 1)} type="button" title="เน€เธเธดเนเธกเธเธณเธเธงเธ">
                           <Plus size={16} />
                         </button>
                         <button
@@ -676,7 +705,7 @@ export default function PosPage() {
                             setCart((items) => items.filter((entry) => entry.id !== item.id));
                           }}
                           type="button"
-                          title="ลบสินค้า"
+                          title="เธฅเธเธชเธดเธเธเนเธฒ"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -688,10 +717,18 @@ export default function PosPage() {
           </div>
         </div>
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-200 px-3 py-2 text-xl font-black">ปุ่มขายด่วน</div>
-          {quickSaleProducts.length > 0 ? (
+          <div className="border-b border-slate-200 px-3 py-2 text-xl font-black">เธเธธเนเธกเธเธฒเธขเธ”เนเธงเธ</div>
+          {quickSaleCategories.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-3 py-2">
+              <button className={`rounded-lg px-3 py-2 text-sm font-black ${quickSaleCategoryId === "all" ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-700"}`} onClick={() => setQuickSaleCategoryId("all")} disabled={busy} type="button">ทั้งหมด</button>
+              {quickSaleCategories.map((category) => (
+                <button key={category.id} className={`rounded-lg px-3 py-2 text-sm font-black ${quickSaleCategoryId === category.id ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-700"}`} onClick={() => setQuickSaleCategoryId(category.id)} disabled={busy} type="button">{category.name}</button>
+              ))}
+            </div>
+          )}
+          {filteredQuickSaleProducts.length > 0 ? (
             <div className="grid grid-cols-2 gap-2.5 p-3 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-              {quickSaleProducts.map((product) => {
+              {filteredQuickSaleProducts.map((product) => {
                 const isOut = product.stockQty <= 0;
                 return (
                   <button
@@ -709,7 +746,7 @@ export default function PosPage() {
                       <div className="line-clamp-2 text-lg leading-tight">{product.name}</div>
                       <div className="text-xl text-teal-700">{baht(product.salePrice)}</div>
                       <div className={`rounded-md px-2 py-1 text-xs ${isOut ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-800"}`}>
-                        {isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}
+                        {isOut ? "เธซเธกเธ”" : `เธเธเน€เธซเธฅเธทเธญ ${product.stockQty} ${product.unit}`}
                       </div>
                     </div>
                   </button>
@@ -717,7 +754,7 @@ export default function PosPage() {
               })}
             </div>
           ) : (
-            <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าปุ่มขายด่วน</div>
+            <div className="px-4 py-6 text-center font-bold text-slate-500">เธขเธฑเธเนเธกเนเธกเธตเธชเธดเธเธเนเธฒเธเธธเนเธกเธเธฒเธขเธ”เนเธงเธ</div>
           )}
         </div>
         {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-2 font-black text-amber-900">{message}</div>}
@@ -729,41 +766,42 @@ export default function PosPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4">
           <div className="card w-full max-w-sm p-6 text-center shadow-2xl">
             <LoaderCircle className="mx-auto animate-spin text-teal-700" size={56} strokeWidth={2.6} />
-            <div className="mt-4 text-2xl font-black text-slate-950">กำลังบันทึกในเครื่อง...</div>
-            <div className="mt-2 font-bold text-slate-600">กรุณารอสักครู่ ห้ามปิดหน้านี้</div>
+            <div className="mt-4 text-2xl font-black text-slate-950">เธเธณเธฅเธฑเธเธเธฑเธเธ—เธถเธเนเธเน€เธเธฃเธทเนเธญเธ...</div>
+            <div className="mt-2 font-bold text-slate-600">เธเธฃเธธเธ“เธฒเธฃเธญเธชเธฑเธเธเธฃเธนเน เธซเนเธฒเธกเธเธดเธ”เธซเธเนเธฒเธเธตเน</div>
           </div>
         </div>
       )}
       {successSale && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="card w-full max-w-lg p-6">
-            <div className="text-3xl font-black text-teal-700">บันทึกการขายสำเร็จ</div>
+            <div className="text-3xl font-black text-teal-700">เธเธฑเธเธ—เธถเธเธเธฒเธฃเธเธฒเธขเธชเธณเน€เธฃเนเธ</div>
             <div className="mt-5 space-y-3 text-xl font-bold">
-              <div className="flex justify-between gap-4"><span>เลขที่บิล</span><span className="text-right">{successSale.receiptNo}</span></div>
-              {successSale.cloudReceiptNo && <div className="flex justify-between gap-4"><span>เลขที่ Cloud</span><span className="text-right">{successSale.cloudReceiptNo}</span></div>}
-              <div className="flex justify-between gap-4"><span>ยอดรวม</span><span>{baht(successSale.totalAmount)}</span></div>
-              <div className="flex justify-between gap-4"><span>วิธีชำระเงิน</span><span>{successSale.paymentMethod === "CREDIT" ? "เงินเชื่อ" : successSale.paymentMethod === "TRANSFER" ? "รับโอน" : "เงินสด"}</span></div>
-              <div className="flex justify-between gap-4"><span>สถานะซิงก์</span><span>{successSale.syncStatus === "SYNCED" ? "ซิงก์แล้ว" : successSale.syncStatus === "FAILED" ? "ซิงก์ไม่สำเร็จ" : "รอซิงก์ Cloud"}</span></div>
+              <div className="flex justify-between gap-4"><span>เน€เธฅเธเธ—เธตเนเธเธดเธฅ</span><span className="text-right">{successSale.receiptNo}</span></div>
+              {successSale.cloudReceiptNo && <div className="flex justify-between gap-4"><span>เน€เธฅเธเธ—เธตเน Cloud</span><span className="text-right">{successSale.cloudReceiptNo}</span></div>}
+              <div className="flex justify-between gap-4"><span>เธขเธญเธ”เธฃเธงเธก</span><span>{baht(successSale.totalAmount)}</span></div>
+              <div className="flex justify-between gap-4"><span>เธงเธดเธเธตเธเธณเธฃเธฐเน€เธเธดเธ</span><span>{successSale.paymentMethod === "CREDIT" ? "เน€เธเธดเธเน€เธเธทเนเธญ" : successSale.paymentMethod === "TRANSFER" ? "เธฃเธฑเธเนเธญเธ" : "เน€เธเธดเธเธชเธ”"}</span></div>
+              <div className="flex justify-between gap-4"><span>เธชเธ–เธฒเธเธฐเธเธดเธเธเน</span><span>{successSale.syncStatus === "SYNCED" ? "เธเธดเธเธเนเนเธฅเนเธง" : successSale.syncStatus === "FAILED" ? "เธเธดเธเธเนเนเธกเนเธชเธณเน€เธฃเนเธ" : "เธฃเธญเธเธดเธเธเน Cloud"}</span></div>
               {successSale.paymentMethod === "CASH" && (
                 <>
-                  <div className="flex justify-between gap-4"><span>รับเงิน</span><span>{baht(successSale.cashReceived ?? 0)}</span></div>
+                  <div className="flex justify-between gap-4"><span>เธฃเธฑเธเน€เธเธดเธ</span><span>{baht(successSale.cashReceived ?? 0)}</span></div>
                   <div className="rounded-lg bg-emerald-50 p-4 text-center">
-                    <div className="text-lg text-emerald-800">เงินทอน</div>
+                    <div className="text-lg text-emerald-800">เน€เธเธดเธเธ—เธญเธ</div>
                     <div className="text-4xl font-black text-emerald-700">{baht(successSale.changeAmount ?? 0)}</div>
                   </div>
                 </>
               )}
               {successSale.paymentMethod === "CREDIT" && (
                 <div className="rounded-lg bg-amber-50 p-4">
-                  <div className="flex justify-between gap-4"><span>ลูกค้า</span><span className="text-right">{successSale.creditCustomerName}</span></div>
-                  <div className="mt-2 flex justify-between gap-4"><span>สถานะ</span><span className="font-black text-amber-800">ค้างชำระ</span></div>
+                  <div className="flex justify-between gap-4"><span>เธฅเธนเธเธเนเธฒ</span><span className="text-right">{successSale.creditCustomerName}</span></div>
+                  <div className="mt-2 flex justify-between gap-4"><span>เธชเธ–เธฒเธเธฐ</span><span className="font-black text-amber-800">เธเนเธฒเธเธเธณเธฃเธฐ</span></div>
                 </div>
               )}
             </div>
-            <button className="btn btn-primary mt-6 w-full" onClick={() => setSuccessSale(null)} type="button">ปิด</button>
+            <button className="btn btn-primary mt-6 w-full" onClick={() => setSuccessSale(null)} type="button">เธเธดเธ”</button>
           </div>
         </div>
       )}
     </section>
   );
 }
+

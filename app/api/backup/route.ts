@@ -143,7 +143,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const [categories, products, productBatches, sales, saleItems, saleItemBatches, stockMovements, creditPayments, cashShifts] = await Promise.all([
+    if (type === "returns") {
+      const returns = await prisma.saleReturn.findMany({
+        include: { sale: true, items: { include: { saleItem: true, product: true } } },
+        orderBy: { createdAt: "desc" }
+      });
+
+      await recordAuditLogForCurrentSession({
+        action: "BACKUP_EXPORTED",
+        entityType: "Backup",
+        description: "ส่งออกข้อมูลคืนสินค้า",
+        metadata: { type: "returns", count: returns.length }
+      });
+
+      return csvResponse(
+        `sale-returns-${stamp}.csv`,
+        ["วันที่/เวลา", "เลขที่บิล", "สินค้า", "บาร์โค้ด", "จำนวนคืน", "ยอดคืน", "เหตุผล"],
+        returns.flatMap((saleReturn) =>
+          saleReturn.items.map((item) => [
+            saleReturn.createdAt.toISOString(),
+            saleReturn.sale.receiptNo,
+            item.saleItem.productNameSnapshot,
+            item.saleItem.barcodeSnapshot,
+            item.quantity,
+            item.refundAmount.toString(),
+            saleReturn.reason ?? ""
+          ])
+        )
+      );
+    }
+
+    const [categories, products, productBatches, sales, saleItems, saleItemBatches, stockMovements, creditPayments, cashShifts, saleReturns, saleReturnItems, auditLogs, appSettings] = await Promise.all([
       prisma.category.findMany({ orderBy: { name: "asc" } }),
       prisma.product.findMany({ orderBy: { name: "asc" } }),
       prisma.productBatch.findMany({ orderBy: [{ receivedAt: "desc" }, { id: "asc" }] }),
@@ -152,7 +182,11 @@ export async function GET(request: NextRequest) {
       prisma.saleItemBatch.findMany({ orderBy: { id: "asc" } }),
       prisma.stockMovement.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.creditPayment.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.cashShift.findMany({ orderBy: { openedAt: "desc" } })
+      prisma.cashShift.findMany({ orderBy: { openedAt: "desc" } }),
+      prisma.saleReturn.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.saleReturnItem.findMany({ orderBy: { id: "asc" } }),
+      prisma.auditLog.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.appSetting.findMany({ orderBy: { key: "asc" } })
     ]);
 
     await recordAuditLogForCurrentSession({
@@ -165,7 +199,9 @@ export async function GET(request: NextRequest) {
         products: products.length,
         sales: sales.length,
         stockMovements: stockMovements.length,
-        cashShifts: cashShifts.length
+        cashShifts: cashShifts.length,
+        saleReturns: saleReturns.length,
+        auditLogs: auditLogs.length
       }
     });
 
@@ -179,7 +215,11 @@ export async function GET(request: NextRequest) {
       saleItemBatches,
       stockMovements,
       creditPayments,
-      cashShifts
+      cashShifts,
+      saleReturns,
+      saleReturnItems,
+      auditLogs,
+      appSettings
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "ไม่สามารถส่งออกข้อมูลได้" }, { status: 403 });

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const closedAt = new Date();
     const sales = await prisma.sale.findMany({
-      where: { createdAt: { gte: shift.openedAt, lt: closedAt } }
+      where: { createdAt: { gte: shift.openedAt, lt: closedAt }, status: { not: "VOIDED" } }
     });
 
     const cashSalesTotal = sales.filter((s) => s.paymentMethod === "CASH").reduce((sum, s) => sum + Number(s.totalAmount), 0);

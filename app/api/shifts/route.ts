@@ -23,7 +23,7 @@ export async function GET() {
 
     if (currentShift) {
       const sales = await prisma.sale.findMany({
-        where: { createdAt: { gte: currentShift.openedAt } }
+        where: { createdAt: { gte: currentShift.openedAt }, status: { not: "VOIDED" } }
       });
       const cashSalesTotal = sales.filter((s) => s.paymentMethod === "CASH").reduce((sum, s) => sum + Number(s.totalAmount), 0);
       const transferSalesTotal = sales.filter((s) => s.paymentMethod === "TRANSFER").reduce((sum, s) => sum + Number(s.totalAmount), 0);

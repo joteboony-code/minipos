@@ -310,12 +310,14 @@ export async function GET() {
     include: {
       items: {
         include: {
+          returnItems: true,
           itemBatches: {
             include: { productBatch: true },
             orderBy: { createdAt: "asc" }
           }
         }
       },
+      returns: { include: { items: true }, orderBy: { createdAt: "desc" } },
       creditPayments: { orderBy: { createdAt: "desc" } }
     },
     orderBy: { createdAt: "desc" },
@@ -332,6 +334,15 @@ export async function GET() {
       changeAmount: sale.changeAmount === null ? null : Number(sale.changeAmount),
       creditDueAmount: sale.creditDueAmount === null ? null : Number(sale.creditDueAmount),
       creditPaidAmount: sale.creditPaidAmount === null ? null : Number(sale.creditPaidAmount),
+      returns: sale.returns.map((entry) => ({
+        ...entry,
+        createdAt: entry.createdAt.toISOString(),
+        items: entry.items.map((item) => ({
+          ...item,
+          refundAmount: Number(item.refundAmount),
+          createdAt: item.createdAt.toISOString()
+        }))
+      })),
       creditPayments: sale.creditPayments.map((payment) => ({
         ...payment,
         amount: Number(payment.amount)
@@ -343,6 +354,7 @@ export async function GET() {
         costPrice: canSeeProfit ? Number(item.costPrice) : null,
         lineTotal: Number(item.lineTotal),
         lineProfit: canSeeProfit ? Number(item.lineProfit) : null,
+        returnedQty: item.returnItems.reduce((sum, entry) => sum + entry.quantity, 0),
         itemBatches: canSeeProfit
           ? item.itemBatches.map((batch) => ({
               id: batch.id,

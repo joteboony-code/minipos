@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { baht, thDate } from "@/lib/format";
@@ -8,6 +8,11 @@ type RecentSale = { id: string; receiptNo: string; totalAmount: number; paymentM
 type StockProduct = { id: string; name: string; barcode: string; stockQty: number; lowStockAlertQty?: number };
 type Summary = {
   totalAmount: number;
+  netSales: number;
+  returnsTotal: number;
+  returnsCount: number;
+  voidedSalesTotal: number;
+  voidedBillCount: number;
   billCount: number;
   grossProfit: number;
   cashTotal: number;
@@ -33,12 +38,12 @@ function currentMonth() {
 }
 
 function paymentLabel(method: RecentSale["paymentMethod"]) {
-  if (method === "CREDIT") return "เงินเชื่อ";
-  return method === "CASH" ? "เงินสด" : "รับโอน";
+  if (method === "CREDIT") return "เน€เธเธดเธเน€เธเธทเนเธญ";
+  return method === "CASH" ? "เน€เธเธดเธเธชเธ”" : "เธฃเธฑเธเนเธญเธ";
 }
 
-function MetricCard({ label, value, tone = "slate" }: { label: string; value: string | number; tone?: "slate" | "green" | "teal" }) {
-  const toneClass = tone === "green" ? "text-emerald-700" : tone === "teal" ? "text-teal-700" : "text-slate-950";
+function MetricCard({ label, value, tone = "slate" }: { label: string; value: string | number; tone?: "slate" | "green" | "teal" | "amber" | "red" }) {
+  const toneClass = tone === "green" ? "text-emerald-700" : tone === "teal" ? "text-teal-700" : tone === "amber" ? "text-amber-700" : tone === "red" ? "text-red-700" : "text-slate-950";
   return (
     <div className="card p-5">
       <div className="text-base font-black text-slate-500">{label}</div>
@@ -48,12 +53,12 @@ function MetricCard({ label, value, tone = "slate" }: { label: string; value: st
 }
 
 function ProductTable({ products }: { products: ProductRank[] }) {
-  if (products.length === 0) return <div className="p-4 text-center font-bold text-slate-500">ยังไม่มีข้อมูล</div>;
+  if (products.length === 0) return <div className="p-4 text-center font-bold text-slate-500">เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅ</div>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[620px] text-sm">
         <thead className="bg-slate-50 text-left text-slate-600">
-          <tr><th className="px-4 py-3">สินค้า</th><th className="px-4 py-3">บาร์โค้ด</th><th className="px-4 py-3 text-right">จำนวนขาย</th><th className="px-4 py-3 text-right">ยอดขาย</th></tr>
+          <tr><th className="px-4 py-3">เธชเธดเธเธเนเธฒ</th><th className="px-4 py-3">เธเธฒเธฃเนเนเธเนเธ”</th><th className="px-4 py-3 text-right">เธเธณเธเธงเธเธเธฒเธข</th><th className="px-4 py-3 text-right">เธขเธญเธ”เธเธฒเธข</th></tr>
         </thead>
         <tbody>
           {products.map((product) => (
@@ -80,11 +85,11 @@ export default function ReportsPage() {
     fetch(`/api/reports?month=${month}`)
       .then(async (res) => {
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error ?? "ไม่สามารถโหลดรายงานได้");
+        if (!res.ok) throw new Error(body.error ?? "เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เนเธซเธฅเธ”เธฃเธฒเธขเธเธฒเธเนเธ”เน");
         return body;
       })
       .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "ไม่สามารถโหลดรายงานได้"));
+      .catch((err) => setError(err instanceof Error ? err.message : "เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เนเธซเธฅเธ”เธฃเธฒเธขเธเธฒเธเนเธ”เน"));
   }, [month]);
 
   const today = data?.today;
@@ -95,11 +100,11 @@ export default function ReportsPage() {
     <section className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-black">รายงาน</h1>
-          <p className="mt-2 text-lg font-bold text-slate-500">ยอดขาย กำไรขั้นต้น วิธีชำระเงิน และสินค้าขายดี</p>
+          <h1 className="text-3xl font-black">เธฃเธฒเธขเธเธฒเธ</h1>
+          <p className="mt-2 text-lg font-bold text-slate-500">เธขเธญเธ”เธเธฒเธข เธเธณเนเธฃเธเธฑเนเธเธ•เนเธ เธงเธดเธเธตเธเธณเธฃเธฐเน€เธเธดเธ เนเธฅเธฐเธชเธดเธเธเนเธฒเธเธฒเธขเธ”เธต</p>
         </div>
         <label className="block">
-          <span className="mb-2 block font-black">รายงานรายเดือน</span>
+          <span className="mb-2 block font-black">เธฃเธฒเธขเธเธฒเธเธฃเธฒเธขเน€เธ”เธทเธญเธ</span>
           <input className="field max-w-xs" type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
         </label>
       </div>
@@ -107,31 +112,34 @@ export default function ReportsPage() {
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 font-black text-red-700">{error}</div>}
 
       <div>
-        <h2 className="mb-3 text-2xl font-black">รายงานวันนี้</h2>
+        <h2 className="mb-3 text-2xl font-black">เธฃเธฒเธขเธเธฒเธเธงเธฑเธเธเธตเน</h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="ยอดขายวันนี้" value={baht(today?.totalAmount ?? 0)} tone="teal" />
-          <MetricCard label="จำนวนบิลวันนี้" value={today?.billCount ?? 0} />
-          <MetricCard label="กำไรขั้นต้นวันนี้" value={baht(today?.grossProfit ?? 0)} tone="green" />
-          <MetricCard label="เงินสด" value={baht(today?.cashTotal ?? 0)} />
-          <MetricCard label="รับโอน" value={baht(today?.transferTotal ?? 0)} />
-          <MetricCard label="เงินเชื่อ" value={baht(today?.creditTotal ?? 0)} />
-          <MetricCard label="เงินเชื่อค้างชำระ" value={baht(today?.creditOutstandingTotal ?? 0)} />
-          <MetricCard label="ชำระเงินเชื่อแล้ว" value={baht(today?.creditPaidTotal ?? 0)} />
-          <MetricCard label="บิลเงินเชื่อค้าง" value={today?.creditOpenBillCount ?? 0} />
+          <MetricCard label="เธขเธญเธ”เธเธฒเธขเธงเธฑเธเธเธตเน" value={baht(today?.totalAmount ?? 0)} tone="teal" />
+          <MetricCard label="ยอดขายสุทธิวันนี้" value={baht(today?.netSales ?? 0)} tone="green" />
+          <MetricCard label="ยอดคืนสินค้าวันนี้" value={baht(today?.returnsTotal ?? 0)} tone="amber" />
+          <MetricCard label="บิลยกเลิกวันนี้" value={`${today?.voidedBillCount ?? 0} บิล`} tone="red" />
+          <MetricCard label="เธเธณเธเธงเธเธเธดเธฅเธงเธฑเธเธเธตเน" value={today?.billCount ?? 0} />
+          <MetricCard label="เธเธณเนเธฃเธเธฑเนเธเธ•เนเธเธงเธฑเธเธเธตเน" value={baht(today?.grossProfit ?? 0)} tone="green" />
+          <MetricCard label="เน€เธเธดเธเธชเธ”" value={baht(today?.cashTotal ?? 0)} />
+          <MetricCard label="เธฃเธฑเธเนเธญเธ" value={baht(today?.transferTotal ?? 0)} />
+          <MetricCard label="เน€เธเธดเธเน€เธเธทเนเธญ" value={baht(today?.creditTotal ?? 0)} />
+          <MetricCard label="เน€เธเธดเธเน€เธเธทเนเธญเธเนเธฒเธเธเธณเธฃเธฐ" value={baht(today?.creditOutstandingTotal ?? 0)} />
+          <MetricCard label="เธเธณเธฃเธฐเน€เธเธดเธเน€เธเธทเนเธญเนเธฅเนเธง" value={baht(today?.creditPaidTotal ?? 0)} />
+          <MetricCard label="เธเธดเธฅเน€เธเธดเธเน€เธเธทเนเธญเธเนเธฒเธ" value={today?.creditOpenBillCount ?? 0} />
         </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-100 p-4 text-xl font-black">สินค้าขายดีวันนี้</div>
+          <div className="border-b border-slate-100 p-4 text-xl font-black">เธชเธดเธเธเนเธฒเธเธฒเธขเธ”เธตเธงเธฑเธเธเธตเน</div>
           <ProductTable products={today?.topProducts ?? []} />
         </div>
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-100 p-4 text-xl font-black">รายการขายล่าสุดวันนี้</div>
+          <div className="border-b border-slate-100 p-4 text-xl font-black">เธฃเธฒเธขเธเธฒเธฃเธเธฒเธขเธฅเนเธฒเธชเธธเธ”เธงเธฑเธเธเธตเน</div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-slate-50 text-left text-slate-600">
-                <tr><th className="px-4 py-3">เลขที่บิล</th><th className="px-4 py-3">เวลา</th><th className="px-4 py-3">ชำระเงิน</th><th className="px-4 py-3 text-right">ยอดรวม</th></tr>
+                <tr><th className="px-4 py-3">เน€เธฅเธเธ—เธตเนเธเธดเธฅ</th><th className="px-4 py-3">เน€เธงเธฅเธฒ</th><th className="px-4 py-3">เธเธณเธฃเธฐเน€เธเธดเธ</th><th className="px-4 py-3 text-right">เธขเธญเธ”เธฃเธงเธก</th></tr>
               </thead>
               <tbody>
                 {(today?.recentSales ?? []).map((sale) => (
@@ -149,28 +157,31 @@ export default function ReportsPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-2xl font-black">รายงานรายเดือน {selectedMonthLabel}</h2>
+        <h2 className="mb-3 text-2xl font-black">เธฃเธฒเธขเธเธฒเธเธฃเธฒเธขเน€เธ”เธทเธญเธ {selectedMonthLabel}</h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="ยอดขายรายเดือน" value={baht(monthly?.totalAmount ?? 0)} tone="teal" />
-          <MetricCard label="จำนวนบิล" value={monthly?.billCount ?? 0} />
-          <MetricCard label="กำไรขั้นต้น" value={baht(monthly?.grossProfit ?? 0)} tone="green" />
-          <MetricCard label="เงินสด" value={baht(monthly?.cashTotal ?? 0)} />
-          <MetricCard label="รับโอน" value={baht(monthly?.transferTotal ?? 0)} />
-          <MetricCard label="เงินเชื่อ" value={baht(monthly?.creditTotal ?? 0)} />
-          <MetricCard label="เงินเชื่อค้างชำระ" value={baht(monthly?.creditOutstandingTotal ?? 0)} />
-          <MetricCard label="ชำระเงินเชื่อแล้ว" value={baht(monthly?.creditPaidTotal ?? 0)} />
-          <MetricCard label="บิลเงินเชื่อค้าง" value={monthly?.creditOpenBillCount ?? 0} />
+          <MetricCard label="เธขเธญเธ”เธเธฒเธขเธฃเธฒเธขเน€เธ”เธทเธญเธ" value={baht(monthly?.totalAmount ?? 0)} tone="teal" />
+          <MetricCard label="ยอดขายสุทธิรายเดือน" value={baht(monthly?.netSales ?? 0)} tone="green" />
+          <MetricCard label="ยอดคืนสินค้ารายเดือน" value={baht(monthly?.returnsTotal ?? 0)} tone="amber" />
+          <MetricCard label="บิลยกเลิกรายเดือน" value={`${monthly?.voidedBillCount ?? 0} บิล`} tone="red" />
+          <MetricCard label="เธเธณเธเธงเธเธเธดเธฅ" value={monthly?.billCount ?? 0} />
+          <MetricCard label="เธเธณเนเธฃเธเธฑเนเธเธ•เนเธ" value={baht(monthly?.grossProfit ?? 0)} tone="green" />
+          <MetricCard label="เน€เธเธดเธเธชเธ”" value={baht(monthly?.cashTotal ?? 0)} />
+          <MetricCard label="เธฃเธฑเธเนเธญเธ" value={baht(monthly?.transferTotal ?? 0)} />
+          <MetricCard label="เน€เธเธดเธเน€เธเธทเนเธญ" value={baht(monthly?.creditTotal ?? 0)} />
+          <MetricCard label="เน€เธเธดเธเน€เธเธทเนเธญเธเนเธฒเธเธเธณเธฃเธฐ" value={baht(monthly?.creditOutstandingTotal ?? 0)} />
+          <MetricCard label="เธเธณเธฃเธฐเน€เธเธดเธเน€เธเธทเนเธญเนเธฅเนเธง" value={baht(monthly?.creditPaidTotal ?? 0)} />
+          <MetricCard label="เธเธดเธฅเน€เธเธดเธเน€เธเธทเนเธญเธเนเธฒเธ" value={monthly?.creditOpenBillCount ?? 0} />
         </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-100 p-4 text-xl font-black">สินค้าขายดีรายเดือน</div>
+          <div className="border-b border-slate-100 p-4 text-xl font-black">เธชเธดเธเธเนเธฒเธเธฒเธขเธ”เธตเธฃเธฒเธขเน€เธ”เธทเธญเธ</div>
           <ProductTable products={monthly?.topProducts ?? []} />
         </div>
         <div className="grid gap-6">
-          <StockList title="สินค้าใกล้หมด" products={data?.lowStock ?? []} />
-          <StockList title="สินค้าหมด" products={data?.outOfStock ?? []} />
+          <StockList title="เธชเธดเธเธเนเธฒเนเธเธฅเนเธซเธกเธ”" products={data?.lowStock ?? []} />
+          <StockList title="เธชเธดเธเธเนเธฒเธซเธกเธ”" products={data?.outOfStock ?? []} />
         </div>
       </div>
     </section>
@@ -182,7 +193,7 @@ function StockList({ title, products }: { title: string; products: StockProduct[
     <div className="card overflow-hidden">
       <div className="border-b border-slate-100 p-4 text-xl font-black">{title}</div>
       {products.length === 0 ? (
-        <div className="p-4 text-center font-bold text-slate-500">ยังไม่มีข้อมูล</div>
+        <div className="p-4 text-center font-bold text-slate-500">เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅ</div>
       ) : (
         <div className="divide-y divide-slate-100">
           {products.map((product) => (
@@ -193,7 +204,7 @@ function StockList({ title, products }: { title: string; products: StockProduct[
               </div>
               <div className="text-right">
                 <div className="text-2xl font-black text-red-700">{product.stockQty}</div>
-                {product.lowStockAlertQty !== undefined && <div className="text-xs font-bold text-slate-500">แจ้งเตือน {product.lowStockAlertQty}</div>}
+                {product.lowStockAlertQty !== undefined && <div className="text-xs font-bold text-slate-500">เนเธเนเธเน€เธ•เธทเธญเธ {product.lowStockAlertQty}</div>}
               </div>
             </div>
           ))}
@@ -202,3 +213,4 @@ function StockList({ title, products }: { title: string; products: StockProduct[
     </div>
   );
 }
+

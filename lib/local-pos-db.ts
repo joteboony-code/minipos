@@ -15,6 +15,7 @@ export type LocalProduct = {
   isActive: boolean;
   isQuickSale?: boolean;
   categoryId?: string | null;
+  category?: { id: string; name: string } | null;
   lowStockAlertQty?: number;
 };
 

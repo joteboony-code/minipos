@@ -12,6 +12,7 @@ export function LocalBackupButton() {
     link.download = `minimart-local-backup-${new Date().toISOString().slice(0, 16).replaceAll(":", "")}.json`;
     link.click();
     URL.revokeObjectURL(url);
+    localStorage.setItem("minimart:lastLocalBackupAt", new Date().toISOString());
   }
 
   return (

@@ -34,11 +34,28 @@ function rangeForBangkokMonth(monthText: string) {
 async function summary(start: Date, end: Date) {
   const sales = await prisma.sale.findMany({
     where: { createdAt: { gte: start, lt: end } },
-    include: { items: true },
+    include: { items: true, returns: { include: { items: true } } },
     orderBy: { createdAt: "desc" }
   });
+  const completedSales = sales.filter((sale) => sale.status !== "VOIDED");
+  const voidedSales = sales.filter((sale) => sale.status === "VOIDED");
+  const returnedBySaleItem = new Map<string, { quantity: number; refundAmount: Prisma.Decimal }>();
+  let returnsTotal = new Prisma.Decimal(0);
+  let returnsCount = 0;
+  for (const sale of completedSales) {
+    for (const saleReturn of sale.returns) {
+      returnsCount += 1;
+      for (const item of saleReturn.items) {
+        const current = returnedBySaleItem.get(item.saleItemId) ?? { quantity: 0, refundAmount: new Prisma.Decimal(0) };
+        current.quantity += item.quantity;
+        current.refundAmount = current.refundAmount.add(item.refundAmount);
+        returnedBySaleItem.set(item.saleItemId, current);
+        returnsTotal = returnsTotal.add(item.refundAmount);
+      }
+    }
+  }
 
-  const totals = sales.reduce(
+  const totals = completedSales.reduce(
     (sum, sale) => {
       sum.totalAmount = sum.totalAmount.add(sale.totalAmount);
       sum.grossProfit = sum.grossProfit.add(sale.grossProfit);
@@ -68,8 +85,15 @@ async function summary(start: Date, end: Date) {
   );
 
   const products = new Map<string, { name: string; barcode: string; quantity: number; totalAmount: Prisma.Decimal; grossProfit: Prisma.Decimal }>();
-  for (const sale of sales) {
+  for (const sale of completedSales) {
     for (const item of sale.items) {
+      const returned = returnedBySaleItem.get(item.id);
+      const soldQty = Math.max(item.quantity - (returned?.quantity ?? 0), 0);
+      if (soldQty === 0) continue;
+      const returnedAmount = returned?.refundAmount ?? new Prisma.Decimal(0);
+      const netLineTotal = item.lineTotal.sub(returnedAmount);
+      const unitProfit = item.lineProfit.div(item.quantity || 1);
+      const netLineProfit = unitProfit.mul(soldQty);
       const key = item.barcodeSnapshot || item.productNameSnapshot;
       const current = products.get(key) ?? {
         name: item.productNameSnapshot,
@@ -78,16 +102,23 @@ async function summary(start: Date, end: Date) {
         totalAmount: new Prisma.Decimal(0),
         grossProfit: new Prisma.Decimal(0)
       };
-      current.quantity += item.quantity;
-      current.totalAmount = current.totalAmount.add(item.lineTotal);
-      current.grossProfit = current.grossProfit.add(item.lineProfit);
+      current.quantity += soldQty;
+      current.totalAmount = current.totalAmount.add(netLineTotal);
+      current.grossProfit = current.grossProfit.add(netLineProfit);
       products.set(key, current);
     }
   }
+  const voidedSalesTotal = voidedSales.reduce((sum, sale) => sum.add(sale.totalAmount), new Prisma.Decimal(0));
+  const netSales = totals.totalAmount.sub(returnsTotal);
 
   return {
     totalAmount: Number(totals.totalAmount),
-    billCount: sales.length,
+    netSales: Number(netSales),
+    returnsTotal: Number(returnsTotal),
+    returnsCount,
+    voidedSalesTotal: Number(voidedSalesTotal),
+    voidedBillCount: voidedSales.length,
+    billCount: completedSales.length,
     grossProfit: Number(totals.grossProfit),
     cashTotal: Number(totals.cashTotal),
     transferTotal: Number(totals.transferTotal),
@@ -99,7 +130,7 @@ async function summary(start: Date, end: Date) {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10)
       .map((product) => ({ ...product, totalAmount: Number(product.totalAmount), grossProfit: Number(product.grossProfit) })),
-    recentSales: sales.slice(0, 10).map((sale) => ({
+    recentSales: completedSales.slice(0, 10).map((sale) => ({
       id: sale.id,
       receiptNo: sale.receiptNo,
       totalAmount: Number(sale.totalAmount),

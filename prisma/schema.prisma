@@ -41,6 +41,7 @@ model Product {
   isActive         Boolean         @default(true)
   isQuickSale      Boolean         @default(false)
   saleItems        SaleItem[]
+  saleReturnItems  SaleReturnItem[]
   stockMovements   StockMovement[]
   productBatches   ProductBatch[]
   createdAt        DateTime        @default(now())
@@ -66,13 +67,19 @@ model Sale {
   creditPaidAmount    Decimal?      @default(0) @db.Decimal(10, 2)
   creditStatus        String?
   idempotencyKey      String?       @unique
+  status              String        @default("COMPLETED")
+  voidedAt            DateTime?
+  voidReason          String?
+  voidedByRole        String?
   items               SaleItem[]
   creditPayments      CreditPayment[]
+  returns             SaleReturn[]
   createdAt           DateTime      @default(now())
 
   @@index([createdAt])
   @@index([paymentMethod])
   @@index([creditStatus])
+  @@index([status])
 }
 
 model SaleItem {
@@ -89,6 +96,7 @@ model SaleItem {
   lineTotal           Decimal @db.Decimal(10, 2)
   lineProfit          Decimal @db.Decimal(10, 2)
   itemBatches         SaleItemBatch[]
+  returnItems         SaleReturnItem[]
 }
 
 model ProductBatch {
@@ -151,6 +159,35 @@ model CreditPayment {
   @@index([createdAt])
 }
 
+model SaleReturn {
+  id        String           @id @default(cuid())
+  saleId    String
+  sale      Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  reason    String?
+  items     SaleReturnItem[]
+  createdAt DateTime         @default(now())
+
+  @@index([saleId])
+  @@index([createdAt])
+}
+
+model SaleReturnItem {
+  id           String     @id @default(cuid())
+  saleReturnId String
+  saleReturn   SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  saleItemId   String
+  saleItem     SaleItem   @relation(fields: [saleItemId], references: [id])
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  quantity     Int
+  refundAmount Decimal    @db.Decimal(10, 2)
+  createdAt    DateTime   @default(now())
+
+  @@index([saleReturnId])
+  @@index([saleItemId])
+  @@index([productId])
+}
+
 model CashShift {
   id                 String    @id @default(cuid())
   openedByRole       String?
@@ -186,4 +223,10 @@ model AuditLog {
   @@index([createdAt])
   @@index([action])
   @@index([entityType])
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

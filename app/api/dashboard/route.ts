@@ -18,15 +18,16 @@ export async function GET() {
   const { start, end } = todayRange();
   const [aggregate, billCount, products, recentSales] = await Promise.all([
     prisma.sale.aggregate({
-      where: { createdAt: { gte: start, lt: end } },
+      where: { createdAt: { gte: start, lt: end }, status: { not: "VOIDED" } },
       _sum: { totalAmount: true, grossProfit: true }
     }),
-    prisma.sale.count({ where: { createdAt: { gte: start, lt: end } } }),
+    prisma.sale.count({ where: { createdAt: { gte: start, lt: end }, status: { not: "VOIDED" } } }),
     prisma.product.findMany({
       where: { isActive: true },
       select: { stockQty: true, lowStockAlertQty: true }
     }),
     prisma.sale.findMany({
+      where: { status: { not: "VOIDED" } },
       orderBy: { createdAt: "desc" },
       take: 8,
       include: { items: true }

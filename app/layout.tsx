@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, BarChart3, Boxes, ClipboardList, Clock, CreditCard, DatabaseBackup, FileText, History, Layers, Package, ShoppingCart } from "lucide-react";
+import { AlertTriangle, BarChart3, Boxes, ClipboardList, Clock, CreditCard, DatabaseBackup, FileText, History, Layers, Package, Settings, ShoppingCart } from "lucide-react";
 import { getSession, roleLabel, type Role } from "@/lib/auth";
 import { LogoutButton } from "./logout-button";
 import "./globals.css";
@@ -17,12 +17,14 @@ const nav: Array<{ href: string; label: string; icon: typeof BarChart3; roles: R
   { href: "/products", label: "สินค้า", icon: Package, roles: ["OWNER"] },
   { href: "/categories", label: "หมวดหมู่", icon: Layers, roles: ["OWNER"] },
   { href: "/stock", label: "สต๊อก", icon: Boxes, roles: ["OWNER"] },
+  { href: "/stock-count", label: "นับสต๊อก", icon: ClipboardList, roles: ["OWNER"] },
   { href: "/sales", label: "ประวัติการขาย", icon: History, roles: ["OWNER", "STAFF"] },
   { href: "/credits", label: "เงินเชื่อ", icon: CreditCard, roles: ["OWNER"] },
   { href: "/shifts", label: "กะขาย", icon: Clock, roles: ["OWNER"] },
   { href: "/low-stock", label: "สินค้าใกล้หมด", icon: AlertTriangle, roles: ["OWNER"] },
   { href: "/reports", label: "รายงาน", icon: FileText, roles: ["OWNER"] },
   { href: "/audit", label: "ประวัติระบบ", icon: ClipboardList, roles: ["OWNER"] },
+  { href: "/settings", label: "ตั้งค่า", icon: Settings, roles: ["OWNER"] },
   { href: "/backup", label: "สำรองข้อมูล", icon: DatabaseBackup, roles: ["OWNER"] }
 ];
 

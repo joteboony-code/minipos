@@ -23,10 +23,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           creditPayments: true
         }
       });
-      if (!sale) throw new Error("เนเธกเนเธเธเธเธดเธฅเธเธตเน");
-      if (sale.status === "VOIDED") throw new Error("เธเธดเธฅเธเธตเนเธ–เธนเธเธขเธเน€เธฅเธดเธเนเธฅเนเธง");
+      if (!sale) throw new Error("ไม่พบบิลนี้");
+      if (sale.status === "VOIDED") throw new Error("บิลนี้ถูกยกเลิกแล้ว");
       if (sale.returns.length > 0) throw new Error("บิลนี้มีการคืนสินค้าแล้ว ไม่สามารถยกเลิกทั้งบิลได้");
-      if (sale.creditPayments.length > 0) throw new Error("เธเธดเธฅเธเธตเนเธกเธตเธเธฒเธฃเธฃเธฑเธเธเธณเธฃเธฐเน€เธเธดเธเน€เธเธทเนเธญเนเธฅเนเธง เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธขเธเน€เธฅเธดเธเนเธ”เน");
+      if (sale.creditPayments.length > 0) throw new Error("บิลนี้มีการรับชำระเงินเชื่อแล้ว ไม่สามารถยกเลิกได้");
 
       const closedShift = await tx.cashShift.findFirst({
         where: {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           closedAt: { gte: sale.createdAt }
         }
       });
-      if (closedShift) throw new Error("เธเธดเธฅเธเธตเนเธญเธขเธนเนเนเธเธเธฐเธ—เธตเนเธเธดเธ”เนเธฅเนเธง เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เธขเธเน€เธฅเธดเธเนเธ”เน");
+      if (closedShift) throw new Error("บิลนี้อยู่ในกะที่ปิดแล้ว ไม่สามารถยกเลิกได้");
 
       for (const item of sale.items) {
         for (const batch of item.itemBatches) {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             quantityChange: item.quantity,
             beforeQty,
             afterQty,
-            note: `เธขเธเน€เธฅเธดเธเธเธดเธฅ ${sale.receiptNo}`
+            note: `ยกเลิกบิล ${sale.receiptNo}`
           }
         });
       }
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ ok: true, sale: result });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "เธขเธเน€เธฅเธดเธเธเธดเธฅเนเธกเนเธชเธณเน€เธฃเนเธ" }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "ยกเลิกบิลไม่สำเร็จ" }, { status: 400 });
   }
 }
 

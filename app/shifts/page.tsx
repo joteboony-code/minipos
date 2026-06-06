@@ -38,9 +38,9 @@ type ShiftData = {
 
 function diffLabel(closing: number, expected: number) {
   const diff = closing - expected;
-  if (Math.abs(diff) < 0.01) return { text: "เธชเธกเธ”เธธเธฅ", cls: "text-emerald-700" };
-  if (diff > 0) return { text: `เน€เธเธดเธเน€เธเธดเธ ${baht(diff)}`, cls: "text-blue-700" };
-  return { text: `เน€เธเธดเธเธเธฒเธ” ${baht(Math.abs(diff))}`, cls: "text-red-700" };
+  if (Math.abs(diff) < 0.01) return { text: "สมดุล", cls: "text-emerald-700" };
+  if (diff > 0) return { text: `เงินเกิน ${baht(diff)}`, cls: "text-blue-700" };
+  return { text: `เงินขาด ${baht(Math.abs(diff))}`, cls: "text-red-700" };
 }
 
 export default function ShiftsPage() {
@@ -71,12 +71,12 @@ export default function ShiftsPage() {
         body: JSON.stringify({ openingCash: Number(openingCash) })
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "เน€เธเธดเธ”เธเธฐเนเธกเนเธชเธณเน€เธฃเนเธ");
+      if (!res.ok) throw new Error(body.error ?? "เปิดกะไม่สำเร็จ");
       setOpeningCash("0");
-      setMessage("เน€เธเธดเธ”เธเธฐเธชเธณเน€เธฃเนเธ");
+      setMessage("เปิดกะสำเร็จ");
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "เน€เธเธดเธ”เธเธฐเนเธกเนเธชเธณเน€เธฃเนเธ");
+      setMessage(error instanceof Error ? error.message : "เปิดกะไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -94,13 +94,13 @@ export default function ShiftsPage() {
         body: JSON.stringify({ closingCash: Number(closingCash), note: closeNote })
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "เธเธดเธ”เธเธฐเนเธกเนเธชเธณเน€เธฃเนเธ");
+      if (!res.ok) throw new Error(body.error ?? "ปิดกะไม่สำเร็จ");
       setClosingCash("");
       setCloseNote("");
-      setMessage("เธเธดเธ”เธเธฐเธชเธณเน€เธฃเนเธ");
+      setMessage("ปิดกะสำเร็จ");
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "เธเธดเธ”เธเธฐเนเธกเนเธชเธณเน€เธฃเนเธ");
+      setMessage(error instanceof Error ? error.message : "ปิดกะไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
@@ -117,27 +117,27 @@ export default function ShiftsPage() {
   return (
     <section className="space-y-5">
       <div>
-        <h1 className="text-2xl font-black">เธเธฐเธเธฒเธข</h1>
-        <p className="text-slate-500">เน€เธเธดเธ”-เธเธดเธ”เธเธฐ เนเธฅเธฐเธ”เธนเธชเธฃเธธเธเธขเธญเธ”เธเธฒเธขเนเธ•เนเธฅเธฐเธเธฐ</p>
+        <h1 className="text-2xl font-black">กะขาย</h1>
+        <p className="text-slate-500">เปิด-ปิดกะ และดูสรุปยอดขายแต่ละกะ</p>
       </div>
 
       {message && (
-        <div className={`rounded-lg border px-4 py-3 font-black ${message.includes("เนเธกเนเธชเธณเน€เธฃเนเธ") || message.includes("เธเธฒเธ”") ? "border-red-200 bg-red-50 text-red-700" : "border-teal-200 bg-teal-50 text-teal-800"}`}>
+        <div className={`rounded-lg border px-4 py-3 font-black ${message.includes("ไม่สำเร็จ") || message.includes("ขาด") ? "border-red-200 bg-red-50 text-red-700" : "border-teal-200 bg-teal-50 text-teal-800"}`}>
           {message}
         </div>
       )}
 
       {!current ? (
         <form onSubmit={openShift} className="card p-5">
-          <h2 className="text-xl font-black">เน€เธเธดเธ”เธเธฐเนเธซเธกเน</h2>
-          <p className="mt-1 font-bold text-slate-500">เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเน€เธเธดเธเธชเธ”เน€เธฃเธดเนเธกเธ•เนเธเนเธเธเธฅเนเธญเธเธฃเธฑเธเน€เธเธดเธ</p>
+          <h2 className="text-xl font-black">เปิดกะใหม่</h2>
+          <p className="mt-1 font-bold text-slate-500">กรุณาระบุเงินสดเริ่มต้นในกล่องรับเงิน</p>
           <label className="mt-4 block space-y-1">
-            <span className="font-black">เน€เธเธดเธเธ—เธญเธเน€เธฃเธดเนเธกเธ•เนเธ (เธเธฒเธ—)</span>
+            <span className="font-black">เงินทอนเริ่มต้น (บาท)</span>
             <input className="field max-w-sm" type="number" min="0" step="0.01" value={openingCash} onChange={(e) => setOpeningCash(e.target.value)} disabled={saving} />
           </label>
           <button className="btn btn-primary mt-5" disabled={saving} type="submit">
             {saving && <LoaderCircle className="animate-spin" size={20} />}
-            เน€เธเธดเธ”เธเธฐ
+            เปิดกะ
           </button>
         </form>
       ) : (
@@ -145,68 +145,68 @@ export default function ShiftsPage() {
           <div className="card p-5">
             <div className="flex items-center gap-3">
               <div className="h-3 w-3 animate-pulse rounded-full bg-emerald-500" />
-              <span className="text-lg font-black text-emerald-700">เธเธฐเน€เธเธดเธ”เธญเธขเธนเน</span>
+              <span className="text-lg font-black text-emerald-700">กะเปิดอยู่</span>
             </div>
             <div className="mt-3 grid gap-2 text-sm font-bold text-slate-700 sm:grid-cols-2">
-              <div>เน€เธเธดเธ”เธเธฐเน€เธงเธฅเธฒ: <span className="font-black text-slate-950">{thDate(current.openedAt)}</span></div>
-              <div>เน€เธเธดเธเธ—เธญเธเน€เธฃเธดเนเธกเธ•เนเธ: <span className="font-black text-slate-950">{baht(current.openingCash)}</span></div>
+              <div>เปิดกะเวลา: <span className="font-black text-slate-950">{thDate(current.openedAt)}</span></div>
+              <div>เงินทอนเริ่มต้น: <span className="font-black text-slate-950">{baht(current.openingCash)}</span></div>
             </div>
           </div>
 
           {totals && (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="card p-4">
-                <div className="text-sm font-bold text-slate-500">เธขเธญเธ”เธเธฒเธขเน€เธเธดเธเธชเธ”</div>
+                <div className="text-sm font-bold text-slate-500">ยอดขายเงินสด</div>
                 <div className="mt-1 text-2xl font-black">{baht(totals.cashSalesTotal)}</div>
               </div>
               <div className="card p-4">
-                <div className="text-sm font-bold text-slate-500">เธขเธญเธ”เนเธญเธ</div>
+                <div className="text-sm font-bold text-slate-500">ยอดโอน</div>
                 <div className="mt-1 text-2xl font-black">{baht(totals.transferSalesTotal)}</div>
               </div>
               <div className="card p-4">
-                <div className="text-sm font-bold text-slate-500">เธขเธญเธ”เน€เธเธดเธเน€เธเธทเนเธญ</div>
+                <div className="text-sm font-bold text-slate-500">ยอดเงินเชื่อ</div>
                 <div className="mt-1 text-2xl font-black">{baht(totals.creditSalesTotal)}</div>
               </div>
               <div className="card p-4">
-                <div className="text-sm font-bold text-slate-500">เธขเธญเธ”เธเธฒเธขเธฃเธงเธก</div>
+                <div className="text-sm font-bold text-slate-500">ยอดขายรวม</div>
                 <div className="mt-1 text-2xl font-black text-teal-700">{baht(totals.totalSales)}</div>
               </div>
               <div className="card p-4">
-                <div className="text-sm font-bold text-slate-500">เธเธณเธเธงเธเธเธดเธฅ</div>
-                <div className="mt-1 text-2xl font-black">{totals.billCount} เธเธดเธฅ</div>
+                <div className="text-sm font-bold text-slate-500">จำนวนบิล</div>
+                <div className="mt-1 text-2xl font-black">{totals.billCount} บิล</div>
               </div>
               <div className="card p-4">
-                <div className="text-sm font-bold text-slate-500">เน€เธเธดเธเธชเธ”เธ—เธตเนเธเธงเธฃเธกเธต</div>
+                <div className="text-sm font-bold text-slate-500">เงินสดที่ควรมี</div>
                 <div className="mt-1 text-2xl font-black">{baht(totals.expectedCash)}</div>
               </div>
             </div>
           )}
 
           <form onSubmit={closeShift} className="card p-5">
-            <h2 className="text-xl font-black">เธเธดเธ”เธเธฐ</h2>
-            <p className="mt-1 font-bold text-slate-500">เธเธฑเธเน€เธเธดเธเธชเธ”เธเธฃเธดเธเนเธเธเธฅเนเธญเธ เนเธฅเนเธงเธเธฃเธญเธเธเธณเธเธงเธเน€เธเธทเนเธญเธเธดเธ”เธเธฐ</p>
+            <h2 className="text-xl font-black">ปิดกะ</h2>
+            <p className="mt-1 font-bold text-slate-500">นับเงินสดจริงในกล่อง แล้วกรอกจำนวนเพื่อปิดกะ</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="space-y-1">
-                <span className="font-black">เน€เธเธดเธเธชเธ”เธเธดเธ”เธเธฐ (เธเธฒเธ—)</span>
+                <span className="font-black">เงินสดปิดกะ (บาท)</span>
                 <input className="field" type="number" min="0" step="0.01" value={closingCash} onChange={(e) => setClosingCash(e.target.value)} disabled={saving} required />
               </label>
               <label className="space-y-1">
-                <span className="font-black">เธซเธกเธฒเธขเน€เธซเธ•เธธ</span>
+                <span className="font-black">หมายเหตุ</span>
                 <input className="field" value={closeNote} onChange={(e) => setCloseNote(e.target.value)} disabled={saving} />
               </label>
             </div>
             {closingCash && totals && (
               <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
-                <div className="flex justify-between gap-3"><span>เน€เธเธดเธเธชเธ”เธ—เธตเนเธเธงเธฃเธกเธต</span><span>{baht(totals.expectedCash)}</span></div>
-                <div className="flex justify-between gap-3"><span>เน€เธเธดเธเธชเธ”เธเธดเธ”เธเธฐ</span><span>{baht(Number(closingCash))}</span></div>
+                <div className="flex justify-between gap-3"><span>เงินสดที่ควรมี</span><span>{baht(totals.expectedCash)}</span></div>
+                <div className="flex justify-between gap-3"><span>เงินสดปิดกะ</span><span>{baht(Number(closingCash))}</span></div>
                 <div className={`mt-2 flex justify-between gap-3 font-black ${diffLabel(Number(closingCash), totals.expectedCash).cls}`}>
-                  <span>เธเธฅเธ•เนเธฒเธ</span><span>{diffLabel(Number(closingCash), totals.expectedCash).text}</span>
+                  <span>ผลต่าง</span><span>{diffLabel(Number(closingCash), totals.expectedCash).text}</span>
                 </div>
               </div>
             )}
             <button className="btn btn-danger mt-5" disabled={saving || !closingCash} type="submit">
               {saving && <LoaderCircle className="animate-spin" size={20} />}
-              เธเธดเธ”เธเธฐ
+              ปิดกะ
             </button>
           </form>
         </>
@@ -214,18 +214,18 @@ export default function ShiftsPage() {
 
       {(data?.history?.length ?? 0) > 0 && (
         <div className="card overflow-x-auto">
-          <div className="px-4 pt-4 pb-2 text-xl font-black">เธเธฃเธฐเธงเธฑเธ•เธดเธเธฐ</div>
+          <div className="px-4 pt-4 pb-2 text-xl font-black">ประวัติกะ</div>
           <table className="w-full min-w-[900px] text-sm">
             <thead className="bg-slate-50 text-left text-slate-600">
               <tr>
-                <th className="px-4 py-3">เน€เธเธดเธ”เธเธฐ</th>
-                <th className="px-4 py-3">เธเธดเธ”เธเธฐ</th>
-                <th className="px-4 py-3 text-right">เน€เธเธดเธเธ—เธญเธ</th>
-                <th className="px-4 py-3 text-right">เธขเธญเธ”เธเธฒเธขเธฃเธงเธก</th>
-                <th className="px-4 py-3 text-right">เธเธดเธฅ</th>
-                <th className="px-4 py-3 text-right">เน€เธเธดเธเธชเธ”เธ—เธตเนเธเธงเธฃเธกเธต</th>
-                <th className="px-4 py-3 text-right">เน€เธเธดเธเธเธดเธ”เธเธฐ</th>
-                <th className="px-4 py-3">เธเธฅเธ•เนเธฒเธ</th>
+                <th className="px-4 py-3">เปิดกะ</th>
+                <th className="px-4 py-3">ปิดกะ</th>
+                <th className="px-4 py-3 text-right">เงินทอน</th>
+                <th className="px-4 py-3 text-right">ยอดขายรวม</th>
+                <th className="px-4 py-3 text-right">บิล</th>
+                <th className="px-4 py-3 text-right">เงินสดที่ควรมี</th>
+                <th className="px-4 py-3 text-right">เงินปิดกะ</th>
+                <th className="px-4 py-3">ผลต่าง</th>
                 <th className="px-4 py-3 text-right">รายงาน</th>
               </tr>
             </thead>

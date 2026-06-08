@@ -207,6 +207,11 @@ export async function saveLocalSale(input: {
     cartByProduct.set(key, existing ? { ...existing, quantity: existing.quantity + item.quantity } : { ...item });
   }
   const cartLines = Array.from(cartByProduct.values());
+  const qtyByProduct = new Map<string, number>();
+  for (const line of cartLines) {
+    qtyByProduct.set(line.id, (qtyByProduct.get(line.id) ?? 0) + line.quantity);
+  }
+  const productIds = Array.from(qtyByProduct.keys());
   let sale: LocalSale | null = null;
   let items: LocalSaleItem[] = [];
 
@@ -235,7 +240,7 @@ export async function saveLocalSale(input: {
     const tx = db.transaction(["products", "localSales", "localSaleItems", "localStockMovements", "syncQueue"], "readwrite");
     const productStore = tx.objectStore("products");
     const storedProducts = new Map<string, LocalProduct>();
-    let remainingReads = cartLines.length;
+    let remainingReads = productIds.length;
     let settled = false;
 
     const fail = (error: Error) => {
@@ -292,19 +297,26 @@ export async function saveLocalSale(input: {
 
       tx.objectStore("localSales").put(sale);
       for (const item of items) tx.objectStore("localSaleItems").put(item);
+      const runningStock = new Map<string, number>();
       for (const line of cartLines) {
         const product = storedProducts.get(line.id);
         if (!product) {
           fail(new Error("ไม่พบสินค้าในเครื่อง"));
           return;
         }
-        const afterQty = product.stockQty - line.quantity;
+        const beforeQty = runningStock.get(product.id) ?? product.stockQty;
+        const afterQty = beforeQty - line.quantity;
+        if (afterQty < 0) {
+          fail(new Error(`${product.name} มีสต็อกในเครื่องไม่พอ`));
+          return;
+        }
+        runningStock.set(product.id, afterQty);
         tx.objectStore("localStockMovements").put({
           localId: crypto.randomUUID(),
           productId: product.id,
           type: "SALE",
           quantityChange: -line.quantity,
-          beforeQty: product.stockQty,
+          beforeQty,
           afterQty,
           note: receiptNo,
           createdAt: now,
@@ -315,14 +327,20 @@ export async function saveLocalSale(input: {
       tx.objectStore("syncQueue").put(queueItem);
     };
 
-    for (const line of cartLines) {
-      const request = productStore.get(line.id);
+    if (productIds.length === 0) {
+      fail(new Error("ไม่มีสินค้าในตะกร้า"));
+      return;
+    }
+
+    for (const productId of productIds) {
+      const request = productStore.get(productId);
       request.onsuccess = () => {
         if (settled) return;
         const product = request.result as LocalProduct | undefined;
         if (!product) return fail(new Error("ไม่พบสินค้าในเครื่อง"));
         if (!product.isActive) return fail(new Error("สินค้าถูกปิดการขาย"));
-        if (product.stockQty < line.quantity) return fail(new Error(`${product.name} มีสต็อกในเครื่องไม่พอ`));
+        const requestedQty = qtyByProduct.get(product.id) ?? 0;
+        if (product.stockQty < requestedQty) return fail(new Error(`${product.name} มีสต็อกในเครื่องไม่พอ`));
         storedProducts.set(product.id, product);
         remainingReads -= 1;
         if (remainingReads === 0) writeSale();

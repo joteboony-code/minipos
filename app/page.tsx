@@ -30,9 +30,9 @@ export default function DashboardPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black">รายงานวันนี้</h1>
-        <p className="text-slate-500">สรุปยอดขายและสถานะร้านแบบรวดเร็ว</p>
+      <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <h1 className="text-3xl font-black text-slate-950">รายงานวันนี้</h1>
+        <p className="mt-1 font-bold text-slate-500">สรุปยอดขายและสถานะร้านแบบรวดเร็ว</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {

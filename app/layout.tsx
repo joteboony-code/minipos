@@ -42,26 +42,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           children
         ) : (
           <div className="min-h-screen lg:flex">
-            <aside className="group overflow-hidden border-b border-slate-200 bg-white transition-all duration-200 lg:min-h-screen lg:w-20 lg:border-b-0 lg:border-r lg:hover:w-72 lg:focus-within:w-72">
-              <div className="px-4 py-5 lg:px-3">
-                <div className="text-3xl font-black leading-tight text-teal-700 lg:text-center lg:text-2xl lg:group-hover:text-left lg:group-focus-within:text-left">MiniMart<span className="lg:hidden lg:group-hover:inline lg:group-focus-within:inline"> POS</span></div>
-                <div className="mt-1 whitespace-nowrap text-lg font-bold text-slate-500 lg:pointer-events-none lg:opacity-0 lg:transition-opacity lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">ระบบขายหน้าร้าน</div>
-                <div className="mt-4 rounded-lg bg-slate-100 px-4 py-3 lg:hidden lg:group-hover:block lg:group-focus-within:block">
+            <aside className="group border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur transition-all duration-200 lg:min-h-screen lg:w-[84px] lg:overflow-hidden lg:border-b-0 lg:border-r lg:shadow-none lg:hover:w-72 lg:focus-within:w-72">
+              <div className="px-4 py-4 lg:px-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-700 text-xl font-black text-white shadow-sm">MP</div>
+                  <div className="min-w-0 lg:w-0 lg:opacity-0 lg:transition-all lg:duration-200 lg:group-hover:w-52 lg:group-hover:opacity-100 lg:group-focus-within:w-52 lg:group-focus-within:opacity-100">
+                    <div className="whitespace-nowrap text-2xl font-black leading-tight text-teal-700">MiniMart POS</div>
+                    <div className="mt-0.5 whitespace-nowrap text-base font-bold text-slate-500">ระบบขายหน้าร้าน</div>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-xl bg-slate-100 px-4 py-3 lg:hidden lg:group-hover:block lg:group-focus-within:block">
                   <div className="text-sm font-bold text-slate-500">เข้าสู่ระบบในฐานะ</div>
                   <div className="text-xl font-black text-slate-900">{roleLabel(session.role)}</div>
                 </div>
               </div>
-              <nav className="flex gap-3 overflow-x-auto px-4 pb-4 lg:block lg:space-y-2 lg:overflow-visible lg:px-3">
+              <nav className="flex gap-2 overflow-x-auto px-4 pb-4 lg:block lg:space-y-1.5 lg:overflow-visible lg:px-3">
                 {visibleNav.map((item) => {
                   const Icon = item.icon;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex min-h-14 shrink-0 items-center gap-4 rounded-lg px-4 py-3 text-xl font-black text-slate-800 hover:bg-teal-50 hover:text-teal-800 lg:justify-center lg:px-3 lg:group-hover:justify-start lg:group-focus-within:justify-start"
+                      className="flex min-h-12 shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-base font-black text-slate-800 transition hover:bg-teal-50 hover:text-teal-800 lg:justify-center lg:group-hover:justify-start lg:group-focus-within:justify-start"
                     >
-                      <Icon className="shrink-0" size={28} strokeWidth={2.4} />
-                      <span className="whitespace-nowrap lg:hidden lg:group-hover:inline lg:group-focus-within:inline">{item.label}</span>
+                      <Icon className="shrink-0" size={26} strokeWidth={2.4} />
+                      <span className="whitespace-nowrap lg:w-0 lg:overflow-hidden lg:opacity-0 lg:transition-all lg:duration-200 lg:group-hover:w-44 lg:group-hover:opacity-100 lg:group-focus-within:w-44 lg:group-focus-within:opacity-100">{item.label}</span>
                     </Link>
                   );
                 })}

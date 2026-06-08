@@ -265,7 +265,8 @@ export default function PosPage() {
     if (!product.isActive) return setMessage("สินค้าถูกปิดการขาย");
     if (manualUnitPrice !== null && (!Number.isFinite(manualUnitPrice) || manualUnitPrice <= 0)) return setMessage("กรุณาใส่ราคาสินค้าให้ถูกต้อง");
     const found = cart.find((item) => item.id === product.id && (item.manualUnitPrice ?? null) === manualUnitPrice);
-    if (found && found.quantity + 1 > product.stockQty) {
+    const totalInCart = cart.filter((item) => item.id === product.id).reduce((sum, item) => sum + item.quantity, 0);
+    if (totalInCart + 1 > product.stockQty) {
       return setMessage("สต็อกไม่พอสำหรับสินค้านี้");
     }
     if (!found && product.stockQty < 1) {
@@ -411,8 +412,13 @@ export default function PosPage() {
       const localProducts = await getAllLocalProducts();
       const localProductMap = new Map(localProducts.map((product) => [product.id, product]));
       const localCart = cart.map((item) => ({ ...(localProductMap.get(item.id) ?? item), quantity: item.quantity, manualUnitPrice: item.manualUnitPrice ?? null }));
+      const qtyByProduct = new Map<string, number>();
       for (const item of localCart) {
-        if (item.stockQty < item.quantity) throw new Error(`${item.name} มีสต็อกในเครื่องไม่พอ`);
+        qtyByProduct.set(item.id, (qtyByProduct.get(item.id) ?? 0) + item.quantity);
+      }
+      for (const [productId, quantity] of qtyByProduct) {
+        const item = localCart.find((entry) => entry.id === productId);
+        if (item && item.stockQty < quantity) throw new Error(`${item.name} มีสต็อกในเครื่องไม่พอ`);
       }
       const localSaved = await saveLocalSale({
         cart: localCart,
@@ -481,9 +487,9 @@ export default function PosPage() {
 
   function renderPaymentPanel() {
     return (
-      <div className="card overflow-hidden border-slate-200 shadow-md">
-        <div className="bg-slate-950 px-4 py-2.5 text-xl font-black text-white">รับชำระเงิน</div>
-        <div className="p-2.5">
+      <div className="card overflow-hidden border-teal-100 shadow-lg">
+        <div className="border-b border-teal-100 bg-teal-700 px-4 py-3 text-xl font-black text-white">รับชำระเงิน</div>
+        <div className="p-3">
         <div className={`grid gap-2 ${settings.enableCreditSales ? "grid-cols-3" : "grid-cols-2"}`}>
           <button className={`btn min-h-11 px-2 py-2 text-base ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CASH")} type="button">
             เงินสด
@@ -497,7 +503,7 @@ export default function PosPage() {
             </button>
           )}
         </div>
-        <div className="mt-2.5 rounded-lg bg-teal-700 p-3 text-white">
+        <div className="mt-2.5 rounded-xl bg-slate-950 p-3 text-white">
           <div className="text-sm font-black text-teal-50">ยอดรวม</div>
           <div className="text-3xl font-black">{baht(total)}</div>
         </div>
@@ -528,7 +534,7 @@ export default function PosPage() {
               </div>
             </div>
             {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
-            <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-2.5">
+            <div className="rounded-xl border-4 border-emerald-300 bg-emerald-50 p-2.5">
               <div className="font-black text-emerald-800">เงินทอน</div>
               <div className="text-3xl font-black text-emerald-700">{baht(change)}</div>
             </div>
@@ -564,7 +570,7 @@ export default function PosPage() {
             {creditNameMissing && <div className="rounded-lg border-2 border-amber-300 bg-white p-2 font-black text-amber-800">กรุณาใส่ชื่อลูกค้าเงินเชื่อ</div>}
           </div>
         )}
-        <button className="btn btn-primary mt-2.5 w-full py-3 text-xl shadow-md" disabled={!canCompleteSale} onClick={completeSale} type="button">
+        <button className="btn btn-primary mt-2.5 w-full py-3 text-xl shadow-md shadow-teal-900/10" disabled={!canCompleteSale} onClick={completeSale} type="button">
           {busy ? "กำลังบันทึก..." : "บันทึกการขาย"}
         </button>
         <button
@@ -651,20 +657,20 @@ export default function PosPage() {
   function renderCartPanel() {
     return (
       <div className="card overflow-hidden border-slate-200">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div>
             <div className="text-xl font-black">ตะกร้าสินค้า</div>
             <div className="text-sm font-bold text-slate-500">ตรวจรายการก่อนรับเงิน</div>
           </div>
           <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black text-slate-800">{cart.length} รายการ</div>
         </div>
-        <div className="max-h-[34vh] min-h-36 overflow-y-auto lg:max-h-[44vh] xl:max-h-[48vh]">
+        <div className="max-h-[34vh] min-h-36 overflow-y-auto bg-white lg:max-h-[44vh] xl:max-h-[48vh]">
           {cart.length === 0 ? (
             <div className="flex min-h-36 items-center justify-center px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
           ) : (
             <div className="divide-y divide-slate-100">
               {cart.map((item) => (
-                <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_82px_auto_auto]">
+                <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_82px_auto_auto]">
                   <div className="min-w-0 leading-tight">
                     <div className="truncate text-base font-black text-slate-950">{item.name}</div>
                     <div className="mt-0.5 truncate text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
@@ -717,7 +723,7 @@ export default function PosPage() {
   function renderQuickSalePanel() {
     return (
       <div className="card overflow-hidden border-slate-200">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div>
             <div className="text-xl font-black">ปุ่มขายด่วน</div>
             <div className="text-sm font-bold text-slate-500">กดสินค้าใช้บ่อยได้ทันที</div>
@@ -733,16 +739,16 @@ export default function PosPage() {
           </div>
         )}
         {filteredQuickSaleProducts.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 md:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 bg-white p-3 md:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3">
             {filteredQuickSaleProducts.map((product) => {
               const isOut = product.stockQty <= 0;
               return (
                 <button
                   key={product.id}
-                  className={`min-h-20 overflow-hidden rounded-lg border-2 text-left font-black shadow-sm transition ${
+                  className={`min-h-20 overflow-hidden rounded-xl border-2 text-left font-black shadow-sm transition ${
                     isOut
-                      ? "border-slate-200 bg-white text-slate-400 opacity-70"
-                      : "border-teal-200 bg-white text-slate-950 hover:border-teal-600 hover:bg-teal-50 hover:shadow-md"
+                      ? "border-slate-200 bg-slate-50 text-slate-400 opacity-70"
+                      : "border-slate-200 bg-white text-slate-950 hover:border-teal-500 hover:bg-teal-50 hover:shadow-md"
                   }`}
                   disabled={isOut || busy}
                   onClick={() => addProduct(product)}
@@ -768,10 +774,10 @@ export default function PosPage() {
 
   return (
     <section className="space-y-3">
-      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h1 className="text-2xl font-black text-slate-950">ขายสินค้า</h1>
+            <h1 className="text-3xl font-black text-slate-950">ขายสินค้า</h1>
             <p className="mt-1 font-bold text-slate-600">สแกนบาร์โค้ด พิมพ์ชื่อสินค้า หรือกดปุ่มขายด่วน</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm font-black">
@@ -780,7 +786,7 @@ export default function PosPage() {
             {pendingSyncError && <span className="rounded-full bg-red-50 px-3 py-1 text-red-700">ซิงก์ล่าสุด: {pendingSyncError}</span>}
             <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{cacheStatus}</span>
             {lastSyncAt && <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">ซิงก์ล่าสุด: {new Date(lastSyncAt).toLocaleString("th-TH")}</span>}
-            <button className="rounded-full bg-teal-600 px-4 py-2 text-white disabled:opacity-50" disabled={!online || syncBusy} onClick={syncPendingSales} type="button">
+            <button className="rounded-full bg-teal-600 px-4 py-2 text-white shadow-sm disabled:opacity-50" disabled={!online || syncBusy} onClick={syncPendingSales} type="button">
               {syncBusy ? "กำลังซิงก์ Cloud" : "ซิงก์ข้อมูลตอนนี้"}
             </button>
           </div>
@@ -793,7 +799,7 @@ export default function PosPage() {
         </div>
 
         <div className="order-1 space-y-3 lg:order-2">
-          <form onSubmit={handleSearch} className="card border-teal-100 p-3 shadow-md">
+          <form onSubmit={handleSearch} className="card border-teal-100 bg-white p-3 shadow-md shadow-teal-900/5">
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-600" size={26} />

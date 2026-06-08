@@ -66,16 +66,16 @@ function normalizeItems(rawItems: unknown): CheckoutItem[] {
 }
 function parseCashReceived(value: unknown) {
   if (value === null || value === undefined || value === "") {
-    throw new Error("เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเน€เธเธดเธเธชเธ”เธ—เธตเนเธฃเธฑเธเธกเธฒ");
+    throw new Error("กรุณาระบุเงินสดที่รับมา");
   }
   let cash: Prisma.Decimal;
   try {
     cash = new Prisma.Decimal(String(value));
   } catch {
-    throw new Error("เธเธณเธเธงเธเน€เธเธดเธเธชเธ”เนเธกเนเธ–เธนเธเธ•เนเธญเธ");
+    throw new Error("จำนวนเงินสดไม่ถูกต้อง");
   }
   if (cash.isNaN() || cash.isNegative()) {
-    throw new Error("เธเธณเธเธงเธเน€เธเธดเธเธชเธ”เนเธกเนเธ–เธนเธเธ•เนเธญเธ");
+    throw new Error("จำนวนเงินสดไม่ถูกต้อง");
   }
   return cash.toDecimalPlaces(2);
 }
@@ -99,7 +99,7 @@ async function createSale(body: unknown) {
   const creditNote = optionalText(checkout.creditNote);
 
   if (paymentMethod === "CREDIT" && !creditCustomerName) {
-    throw new Error("เธเธฃเธธเธ“เธฒเนเธชเนเธเธทเนเธญเธฅเธนเธเธเนเธฒเน€เธเธดเธเน€เธเธทเนเธญ");
+    throw new Error("กรุณาใส่ชื่อลูกค้าเงินเชื่อ");
   }
 
   const cashReceived = paymentMethod === "CASH" ? parseCashReceived(checkout.cashReceived) : null;
@@ -119,6 +119,11 @@ async function createSale(body: unknown) {
     const products = await tx.product.findMany({
       where: { id: { in: items.map((item) => item.productId) } }
     });
+    const requestedQtyByProduct = new Map<string, number>();
+    for (const item of items) {
+      requestedQtyByProduct.set(item.productId, (requestedQtyByProduct.get(item.productId) ?? 0) + item.quantity);
+    }
+    const batchRemainingQty = new Map<string, number>();
 
     const lines: Array<{
       product: (typeof products)[number];
@@ -138,9 +143,9 @@ async function createSale(body: unknown) {
     }> = [];
     for (const item of items) {
       const product = products.find((entry) => entry.id === item.productId);
-      if (!product) throw new Error("เนเธกเนเธเธเธชเธดเธเธเนเธฒ");
-      if (!product.isActive) throw new Error(`${product.name} เธ–เธนเธเธเธดเธ”เนเธเนเธเธฒเธ`);
-      if (product.stockQty < item.quantity) throw new Error(`${product.name} เธกเธตเธชเธ•เนเธญเธเนเธกเนเธเธญ`);
+      if (!product) throw new Error("ไม่พบสินค้า");
+      if (!product.isActive) throw new Error(`${product.name} ถูกปิดการขาย`);
+      if (product.stockQty < (requestedQtyByProduct.get(product.id) ?? item.quantity)) throw new Error(`${product.name} มีสต็อกไม่พอ`);
 
       if (item.unitPrice && !product.allowManualPrice) throw new Error(`${product.name} ไม่อนุญาตให้ใส่ราคาเอง`);
       const unitPrice = item.unitPrice ?? product.salePrice;
@@ -155,20 +160,23 @@ async function createSale(body: unknown) {
       const allocations = [];
       for (const batch of batches) {
         if (remainingToAllocate <= 0) break;
-        const allocatedQty = Math.min(batch.remainingQty, remainingToAllocate);
+        const availableQty = batchRemainingQty.get(batch.id) ?? batch.remainingQty;
+        if (availableQty <= 0) continue;
+        const allocatedQty = Math.min(availableQty, remainingToAllocate);
         const totalCost = batch.unitCost.mul(allocatedQty).toDecimalPlaces(2);
         allocations.push({
           batchId: batch.id,
-          previousRemainingQty: batch.remainingQty,
+          previousRemainingQty: availableQty,
           quantity: allocatedQty,
           unitCost: batch.unitCost,
           totalCost
         });
+        batchRemainingQty.set(batch.id, availableQty - allocatedQty);
         remainingToAllocate -= allocatedQty;
       }
 
       if (remainingToAllocate > 0) {
-        throw new Error(`${product.name} เธขเธฑเธเนเธกเนเธกเธตเธฅเนเธญเธ•เธชเธดเธเธเนเธฒเน€เธเธตเธขเธเธเธญ เธเธฃเธธเธ“เธฒเธ•เธฑเนเธเธฅเนเธญเธ•เธขเธญเธ”เธขเธเธกเธฒ`);
+        throw new Error(`${product.name} ยังไม่มีล็อตสินค้าเพียงพอ กรุณาตั้งล็อตยอดยกมา`);
       }
 
       const lineCost = allocations.reduce((sum, allocation) => sum.add(allocation.totalCost), new Prisma.Decimal(0)).toDecimalPlaces(2);
@@ -192,7 +200,7 @@ async function createSale(body: unknown) {
     const changeAmount = paymentMethod === "CASH" && cashReceived ? cashReceived.sub(totalAmount) : paymentMethod === "CREDIT" ? new Prisma.Decimal(0) : null;
 
     if (cashReceived && cashReceived.lessThan(totalAmount)) {
-      throw new Error("เน€เธเธดเธเธชเธ”เธ—เธตเนเธฃเธฑเธเธกเธฒเธเนเธญเธขเธเธงเนเธฒเธขเธญเธ”เธฃเธงเธก");
+      throw new Error("เงินรับน้อยกว่ายอดรวม");
     }
 
     const receiptNo = await nextReceiptNo(tx);
@@ -215,6 +223,7 @@ async function createSale(body: unknown) {
       }
     });
 
+    const stockRunningByProduct = new Map<string, number>();
     for (const line of lines) {
       const saleItem = await tx.saleItem.create({
         data: {
@@ -239,7 +248,7 @@ async function createSale(body: unknown) {
           data: { remainingQty: { decrement: allocation.quantity } }
         });
         if (updatedBatch.count !== 1) {
-          throw new Error(`${line.product.name} เธฅเนเธญเธ•เธชเธดเธเธเนเธฒเน€เธเธฅเธตเนเธขเธเนเธเธฅเธ เธเธฃเธธเธ“เธฒเธฅเธญเธเนเธซเธกเน`);
+          throw new Error(`${line.product.name} ล็อตสินค้าเปลี่ยนแปลง กรุณาลองใหม่`);
         }
         await tx.saleItemBatch.create({
           data: {
@@ -252,20 +261,12 @@ async function createSale(body: unknown) {
         });
       }
 
-      const beforeQty = line.product.stockQty;
+      const beforeQty = stockRunningByProduct.get(line.product.id) ?? line.product.stockQty;
       const afterQty = beforeQty - line.quantity;
-      const updated = await tx.product.updateMany({
-        where: {
-          id: line.product.id,
-          isActive: true,
-          stockQty: beforeQty
-        },
-        data: { stockQty: { decrement: line.quantity } }
-      });
-
-      if (updated.count !== 1 || afterQty < 0) {
-        throw new Error(`${line.product.name} เธกเธตเธชเธ•เนเธญเธเนเธกเนเธเธญ`);
+      if (afterQty < 0) {
+        throw new Error(`${line.product.name} มีสต็อกไม่พอ`);
       }
+      stockRunningByProduct.set(line.product.id, afterQty);
 
       await tx.stockMovement.create({
         data: {
@@ -277,6 +278,23 @@ async function createSale(body: unknown) {
           note: sale.receiptNo
         }
       });
+    }
+
+    for (const [productId, quantity] of requestedQtyByProduct) {
+      const product = products.find((entry) => entry.id === productId);
+      if (!product) throw new Error("ไม่พบสินค้า");
+      const updated = await tx.product.updateMany({
+        where: {
+          id: productId,
+          isActive: true,
+          stockQty: product.stockQty
+        },
+        data: { stockQty: { decrement: quantity } }
+      });
+
+      if (updated.count !== 1) {
+        throw new Error(`${product.name} มีสต็อกไม่พอ`);
+      }
     }
 
     return sale.id;
@@ -401,7 +419,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!sale) throw new Error("เธชเธฃเนเธฒเธเน€เธฅเธเธ—เธตเนเนเธเน€เธชเธฃเนเธเนเธกเนเธชเธณเน€เธฃเนเธ");
+    if (!sale) throw new Error("สร้างเลขที่ใบเสร็จไม่สำเร็จ");
 
     const context = saleLogContext(body);
     await recordAuditLog({
@@ -438,7 +456,7 @@ export async function POST(request: NextRequest) {
       errorName: error instanceof Error ? error.name : typeof error,
       errorMessage: error instanceof Error ? error.message : String(error)
     });
-    return NextResponse.json({ error: error instanceof Error ? error.message : "เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”เธเธฒเธเธเนเธญเธกเธนเธฅ" }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "เกิดข้อผิดพลาดฐานข้อมูล" }, { status: 400 });
   }
 }
 

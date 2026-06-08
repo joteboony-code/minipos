@@ -2,7 +2,7 @@
 
 :root {
   color-scheme: light;
-  --background: #f7f8fb;
+  --background: #f4f7fb;
   --foreground: #172033;
 }
 
@@ -10,7 +10,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Tahoma, Arial, Helvetica, sans-serif;
   font-size: 18px;
 }
 
@@ -22,17 +22,17 @@ textarea {
 }
 
 .card {
-  border: 1px solid #e4e8f0;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.06);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 .field {
   width: 100%;
   min-height: 3.75rem;
-  border: 2px solid #cfd6e3;
-  border-radius: 8px;
+  border: 2px solid #cbd5e1;
+  border-radius: 10px;
   background: #ffffff;
   padding: 0.95rem 1rem;
   outline: none;
@@ -51,7 +51,7 @@ textarea {
   justify-content: center;
   gap: 0.6rem;
   min-height: 3.5rem;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 0.85rem 1.15rem;
   font-size: 1.08rem;
   font-weight: 800;
@@ -78,7 +78,7 @@ textarea {
 }
 
 .btn-light {
-  border: 1px solid #cfd6e3;
+  border: 1px solid #cbd5e1;
   background: #ffffff;
   color: #172033;
 }

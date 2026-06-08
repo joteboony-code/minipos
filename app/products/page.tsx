@@ -18,6 +18,7 @@ type Product = {
   lowStockAlertQty: number;
   isActive: boolean;
   isQuickSale: boolean;
+  allowManualPrice: boolean;
 };
 
 const empty = {
@@ -30,7 +31,8 @@ const empty = {
   unit: "ชิ้น",
   lowStockAlertQty: "5",
   isActive: true,
-  isQuickSale: false
+  isQuickSale: false,
+  allowManualPrice: false
 };
 
 export default function ProductsPage() {
@@ -91,7 +93,8 @@ export default function ProductsPage() {
       unit: product.unit,
       lowStockAlertQty: String(product.lowStockAlertQty),
       isActive: product.isActive,
-      isQuickSale: product.isQuickSale
+      isQuickSale: product.isQuickSale,
+      allowManualPrice: product.allowManualPrice
     });
   }
 
@@ -145,6 +148,9 @@ export default function ProductsPage() {
         <CheckboxField label="ปุ่มขายด่วน" helper="แสดงสินค้านี้ในหน้า POS ให้กดขายเร็ว">
           <input type="checkbox" checked={form.isQuickSale} onChange={(e) => setForm({ ...form, isQuickSale: e.target.checked })} />
         </CheckboxField>
+        <CheckboxField label="ใส่ราคาเองตอนขาย" helper="ใช้กับสินค้าเช่น ขนม 5 บาท/10 บาท หรือของจิปาถะ">
+          <input type="checkbox" checked={form.allowManualPrice} onChange={(e) => setForm({ ...form, allowManualPrice: e.target.checked })} />
+        </CheckboxField>
         <button className="btn btn-primary md:col-span-2" type="submit"><Save size={18} />{editingId ? "บันทึกสินค้า" : "เพิ่มสินค้า"}</button>
       </form>
       <div className="card flex flex-col gap-3 p-3 md:flex-row">
@@ -168,7 +174,11 @@ export default function ProductsPage() {
           <tbody>
             {products.map((product) => (
               <tr key={product.id} className={`border-t border-slate-100 ${product.stockQty <= product.lowStockAlertQty ? "bg-amber-50" : ""}`}>
-                <td className="px-4 py-3"><div className="font-bold">{product.name}</div><div className="text-xs text-slate-500">{product.barcode}</div></td>
+                <td className="px-4 py-3">
+                  <div className="font-bold">{product.name}</div>
+                  <div className="text-xs text-slate-500">{product.barcode}</div>
+                  {product.allowManualPrice && <div className="mt-1 inline-flex rounded-md bg-teal-50 px-2 py-0.5 text-xs font-black text-teal-700">ใส่ราคาเอง</div>}
+                </td>
                 <td className="px-4 py-3">{product.category?.name ?? "-"}</td>
                 <td className="px-4 py-3 text-right">{baht(product.costPrice)}</td>
                 <td className="px-4 py-3 text-right font-bold">{baht(product.salePrice)}</td>

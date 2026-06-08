@@ -21,7 +21,7 @@ import {
 
 type Product = LocalProduct;
 
-type CartItem = Product & { quantity: number };
+type CartItem = Product & { quantity: number; manualUnitPrice?: number | null };
 type PromptPayState = { configured: boolean; qrDataUrl?: string; message?: string };
 type PosSettings = { enableCreditSales: boolean; requireOpenShiftBeforeSale: boolean };
 type SaleSuccess = {
@@ -89,6 +89,8 @@ export default function PosPage() {
   const [syncBusy, setSyncBusy] = useState(false);
   const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
   const [settings, setSettings] = useState<PosSettings>({ enableCreditSales: true, requireOpenShiftBeforeSale: false });
+  const [manualPriceProduct, setManualPriceProduct] = useState<Product | null>(null);
+  const [manualPrice, setManualPrice] = useState("");
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -178,7 +180,8 @@ export default function PosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadProductCache, refreshSyncStatus]);
 
-  const total = useMemo(() => cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0), [cart]);
+  const unitPriceOf = useCallback((item: Pick<CartItem, "salePrice" | "manualUnitPrice">) => item.manualUnitPrice ?? item.salePrice, []);
+  const total = useMemo(() => cart.reduce((sum, item) => sum + unitPriceOf(item) * item.quantity, 0), [cart, unitPriceOf]);
   const cashAmount = Number(cashReceived || 0);
   const validCashAmount = Number.isFinite(cashAmount) ? cashAmount : 0;
   const isCashTooLow = paymentMethod === "CASH" && cashReceived.trim() !== "" && validCashAmount < total;
@@ -249,7 +252,19 @@ export default function PosPage() {
 
   function addProduct(product: Product) {
     if (!product.isActive) return setMessage("สินค้าถูกปิดการขาย");
-    const found = cart.find((item) => item.id === product.id);
+    if (product.allowManualPrice) {
+      if (product.stockQty < 1) return setMessage("สต๊อกหมด");
+      setManualPriceProduct(product);
+      setManualPrice("");
+      return;
+    }
+    addProductWithPrice(product, null);
+  }
+
+  function addProductWithPrice(product: Product, manualUnitPrice: number | null) {
+    if (!product.isActive) return setMessage("สินค้าถูกปิดการขาย");
+    if (manualUnitPrice !== null && (!Number.isFinite(manualUnitPrice) || manualUnitPrice <= 0)) return setMessage("กรุณาใส่ราคาสินค้าให้ถูกต้อง");
+    const found = cart.find((item) => item.id === product.id && (item.manualUnitPrice ?? null) === manualUnitPrice);
     if (found && found.quantity + 1 > product.stockQty) {
       return setMessage("สต็อกไม่พอสำหรับสินค้านี้");
     }
@@ -258,10 +273,12 @@ export default function PosPage() {
     }
     setCart((items) =>
       found
-        ? items.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item))
-        : [...items, { ...product, quantity: 1 }]
+        ? items.map((item) => (item.id === product.id && (item.manualUnitPrice ?? null) === manualUnitPrice ? { ...item, quantity: item.quantity + 1 } : item))
+        : [...items, { ...product, quantity: 1, manualUnitPrice }]
     );
     setMessage("");
+    setManualPriceProduct(null);
+    setManualPrice("");
   }
 
   async function syncPendingSales() {
@@ -393,7 +410,7 @@ export default function PosPage() {
     try {
       const localProducts = await getAllLocalProducts();
       const localProductMap = new Map(localProducts.map((product) => [product.id, product]));
-      const localCart = cart.map((item) => ({ ...(localProductMap.get(item.id) ?? item), quantity: item.quantity }));
+      const localCart = cart.map((item) => ({ ...(localProductMap.get(item.id) ?? item), quantity: item.quantity, manualUnitPrice: item.manualUnitPrice ?? null }));
       for (const item of localCart) {
         if (item.stockQty < item.quantity) throw new Error(`${item.name} มีสต็อกในเครื่องไม่พอ`);
       }
@@ -443,6 +460,14 @@ export default function PosPage() {
     completeSale();
   }
 
+  function submitManualPrice(event?: React.FormEvent) {
+    event?.preventDefault();
+    if (!manualPriceProduct) return;
+    const price = Number(manualPrice);
+    addProductWithPrice(manualPriceProduct, price);
+    inputRef.current?.focus();
+  }
+
   function setQuickCashAmount(amount: number) {
     setCashReceived(amount.toFixed(2).replace(/\.00$/, ""));
   }
@@ -456,30 +481,31 @@ export default function PosPage() {
 
   function renderPaymentPanel() {
     return (
-      <div className="card p-3">
-        <div className="text-xl font-black">รับชำระเงิน</div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CASH")} type="button">
+      <div className="card overflow-hidden border-slate-200 shadow-md">
+        <div className="bg-slate-950 px-4 py-2.5 text-xl font-black text-white">รับชำระเงิน</div>
+        <div className="p-2.5">
+        <div className={`grid gap-2 ${settings.enableCreditSales ? "grid-cols-3" : "grid-cols-2"}`}>
+          <button className={`btn min-h-11 px-2 py-2 text-base ${paymentMethod === "CASH" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CASH")} type="button">
             เงินสด
           </button>
-          <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("TRANSFER")} type="button">
+          <button className={`btn min-h-11 px-2 py-2 text-base ${paymentMethod === "TRANSFER" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("TRANSFER")} type="button">
             รับโอน
           </button>
           {settings.enableCreditSales && (
-            <button className={`btn min-h-12 px-2 text-base ${paymentMethod === "CREDIT" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CREDIT")} type="button">
+            <button className={`btn min-h-11 px-2 py-2 text-base ${paymentMethod === "CREDIT" ? "btn-primary ring-4 ring-teal-200" : "btn-light"}`} disabled={busy} onClick={() => setPaymentMethod("CREDIT")} type="button">
               เงินเชื่อ
             </button>
           )}
         </div>
-        <div className="mt-2 rounded-lg bg-slate-100 p-3">
-          <div className="text-sm font-black text-slate-600">ยอดรวม</div>
-          <div className="text-3xl font-black text-teal-700">{baht(total)}</div>
+        <div className="mt-2.5 rounded-lg bg-teal-700 p-3 text-white">
+          <div className="text-sm font-black text-teal-50">ยอดรวม</div>
+          <div className="text-3xl font-black">{baht(total)}</div>
         </div>
         {paymentMethod === "CASH" && (
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2.5 space-y-1.5">
             <label className="font-black">รับเงิน</label>
             <input
-              className="field min-h-12 text-xl"
+              className="field min-h-11 py-2 text-xl"
               value={cashReceived}
               onChange={(event) => setCashReceived(event.target.value)}
               onKeyDown={handleCashKeyDown}
@@ -490,7 +516,7 @@ export default function PosPage() {
             />
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
               <div className="mb-1.5 text-sm font-black text-slate-700">รับเงินด่วน</div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-4 gap-1">
                 <button className={quickCashButtonClass(total)} disabled={busy || total <= 0} onClick={() => setQuickCashAmount(total)} type="button">
                   พอดี
                 </button>
@@ -502,43 +528,43 @@ export default function PosPage() {
               </div>
             </div>
             {isCashTooLow && <div className="rounded-lg border-2 border-red-200 bg-red-50 p-2 font-black text-red-700">เงินรับน้อยกว่ายอดรวม</div>}
-            <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-3">
+            <div className="rounded-lg border-4 border-emerald-300 bg-emerald-50 p-2.5">
               <div className="font-black text-emerald-800">เงินทอน</div>
               <div className="text-3xl font-black text-emerald-700">{baht(change)}</div>
             </div>
           </div>
         )}
         {paymentMethod === "TRANSFER" && (
-          <div className="mt-2 rounded-lg border-2 border-blue-100 bg-blue-50 p-3 text-center">
+          <div className="mt-2 rounded-lg border-2 border-blue-100 bg-blue-50 p-2.5 text-center">
             <div className="text-lg font-black text-blue-900">QR พร้อมเพย์</div>
             <div className="font-black text-blue-700">ยอดโอน {baht(total)}</div>
             {promptPay?.configured && promptPay.qrDataUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img className="mx-auto mt-2 max-h-44 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
+              <img className="mx-auto mt-2 max-h-36 rounded-lg bg-white p-2" src={promptPay.qrDataUrl} alt="QR พร้อมเพย์" />
             ) : (
               <div className="mt-2 rounded-lg bg-white p-2 font-bold text-slate-600">{promptPay?.message ?? "ยังไม่ได้ตั้งค่าเลขพร้อมเพย์"}</div>
             )}
           </div>
         )}
         {paymentMethod === "CREDIT" && (
-          <div className="mt-2 space-y-2 rounded-lg border-2 border-amber-100 bg-amber-50 p-3">
+          <div className="mt-2 space-y-1.5 rounded-lg border-2 border-amber-100 bg-amber-50 p-2.5">
             <div className="text-lg font-black text-amber-900">เงินเชื่อ</div>
             <label className="block space-y-1">
               <span className="font-black">ชื่อลูกค้า</span>
-              <input className="field min-h-11 text-base" value={creditCustomerName} onChange={(event) => setCreditCustomerName(event.target.value)} disabled={busy} />
+              <input className="field min-h-10 py-2 text-base" value={creditCustomerName} onChange={(event) => setCreditCustomerName(event.target.value)} disabled={busy} />
             </label>
             <label className="block space-y-1">
               <span className="font-black">เบอร์โทร (ไม่บังคับ)</span>
-              <input className="field min-h-11 text-base" value={creditCustomerPhone} onChange={(event) => setCreditCustomerPhone(event.target.value)} disabled={busy} />
+              <input className="field min-h-10 py-2 text-base" value={creditCustomerPhone} onChange={(event) => setCreditCustomerPhone(event.target.value)} disabled={busy} />
             </label>
             <label className="block space-y-1">
               <span className="font-black">หมายเหตุ (ไม่บังคับ)</span>
-              <input className="field min-h-11 text-base" value={creditNote} onChange={(event) => setCreditNote(event.target.value)} disabled={busy} />
+              <input className="field min-h-10 py-2 text-base" value={creditNote} onChange={(event) => setCreditNote(event.target.value)} disabled={busy} />
             </label>
             {creditNameMissing && <div className="rounded-lg border-2 border-amber-300 bg-white p-2 font-black text-amber-800">กรุณาใส่ชื่อลูกค้าเงินเชื่อ</div>}
           </div>
         )}
-        <button className="btn btn-primary mt-3 w-full py-3 text-xl" disabled={!canCompleteSale} onClick={completeSale} type="button">
+        <button className="btn btn-primary mt-2.5 w-full py-3 text-xl shadow-md" disabled={!canCompleteSale} onClick={completeSale} type="button">
           {busy ? "กำลังบันทึก..." : "บันทึกการขาย"}
         </button>
         <button
@@ -553,6 +579,7 @@ export default function PosPage() {
         >
           ยกเลิกตะกร้า
         </button>
+        </div>
       </div>
     );
   }
@@ -584,7 +611,7 @@ export default function PosPage() {
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-lg font-black text-slate-950">{product.name}</span>
             <span className="text-sm font-bold text-slate-500">{product.barcode}</span>
-            <span className="text-lg font-black text-teal-700">ราคา {baht(product.salePrice)}</span>
+            <span className="text-lg font-black text-teal-700">{product.allowManualPrice ? "ใส่ราคาเอง" : `ราคา ${baht(product.salePrice)}`}</span>
             <span className={`rounded-md px-2 py-1 text-sm font-black ${status.className}`}>{status.label}</span>
           </div>
         </button>
@@ -610,7 +637,7 @@ export default function PosPage() {
                   <div className="text-xs font-bold text-slate-500">{product.barcode}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-black text-teal-700">ราคา {baht(product.salePrice)}</div>
+                  <div className="font-black text-teal-700">{product.allowManualPrice ? "ใส่ราคาเอง" : `ราคา ${baht(product.salePrice)}`}</div>
                   <div className={`mt-1 rounded-md px-2 py-0.5 text-xs font-black ${status.className}`}>{status.label}</div>
                 </div>
               </button>
@@ -621,147 +648,180 @@ export default function PosPage() {
     );
   }
 
+  function renderCartPanel() {
+    return (
+      <div className="card overflow-hidden border-slate-200">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+          <div>
+            <div className="text-xl font-black">ตะกร้าสินค้า</div>
+            <div className="text-sm font-bold text-slate-500">ตรวจรายการก่อนรับเงิน</div>
+          </div>
+          <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black text-slate-800">{cart.length} รายการ</div>
+        </div>
+        <div className="max-h-[34vh] min-h-36 overflow-y-auto lg:max-h-[44vh] xl:max-h-[48vh]">
+          {cart.length === 0 ? (
+            <div className="flex min-h-36 items-center justify-center px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {cart.map((item) => (
+                <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_82px_auto_auto]">
+                  <div className="min-w-0 leading-tight">
+                    <div className="truncate text-base font-black text-slate-950">{item.name}</div>
+                    <div className="mt-0.5 truncate text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
+                  </div>
+                  <div className="hidden text-right text-xs font-bold text-slate-600 sm:block">
+                    {baht(unitPriceOf(item))} x {item.quantity}
+                  </div>
+                  <div className="text-right text-lg font-black text-teal-700">{baht(unitPriceOf(item) * item.quantity)}</div>
+                  <div className="col-span-2 flex justify-end gap-1 sm:col-span-1">
+                    <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
+                      <Minus size={16} />
+                    </button>
+                    <input
+                      className="h-8 w-14 rounded-lg bg-slate-100 text-center text-sm font-black focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      disabled={busy}
+                      value={qtyDraft[item.id] !== undefined ? qtyDraft[item.id] : String(item.quantity)}
+                      onChange={(e) => setQtyDraft((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      onBlur={() => commitQty(item)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
+                      title={`จำนวน (สูงสุด ${item.stockQty})`}
+                    />
+                    <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
+                      <Plus size={16} />
+                    </button>
+                    <button
+                      className="btn btn-danger touch-icon-button"
+                      disabled={busy}
+                      onClick={() => {
+                        setQtyDraft((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
+                        setCart((items) => items.filter((entry) => entry.id !== item.id));
+                      }}
+                      type="button"
+                      title="ลบสินค้า"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderQuickSalePanel() {
+    return (
+      <div className="card overflow-hidden border-slate-200">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+          <div>
+            <div className="text-xl font-black">ปุ่มขายด่วน</div>
+            <div className="text-sm font-bold text-slate-500">กดสินค้าใช้บ่อยได้ทันที</div>
+          </div>
+          <div className="rounded-full bg-teal-50 px-3 py-1 text-sm font-black text-teal-800">{filteredQuickSaleProducts.length} ปุ่ม</div>
+        </div>
+        {quickSaleCategories.length > 0 && (
+          <div className="flex flex-wrap gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+            <button className={`rounded-lg px-3 py-2 text-sm font-black ${quickSaleCategoryId === "all" ? "bg-teal-600 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`} onClick={() => setQuickSaleCategoryId("all")} disabled={busy} type="button">ทั้งหมด</button>
+            {quickSaleCategories.map((category) => (
+              <button key={category.id} className={`rounded-lg px-3 py-2 text-sm font-black ${quickSaleCategoryId === category.id ? "bg-teal-600 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`} onClick={() => setQuickSaleCategoryId(category.id)} disabled={busy} type="button">{category.name}</button>
+            ))}
+          </div>
+        )}
+        {filteredQuickSaleProducts.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 md:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {filteredQuickSaleProducts.map((product) => {
+              const isOut = product.stockQty <= 0;
+              return (
+                <button
+                  key={product.id}
+                  className={`min-h-20 overflow-hidden rounded-lg border-2 text-left font-black shadow-sm transition ${
+                    isOut
+                      ? "border-slate-200 bg-white text-slate-400 opacity-70"
+                      : "border-teal-200 bg-white text-slate-950 hover:border-teal-600 hover:bg-teal-50 hover:shadow-md"
+                  }`}
+                  disabled={isOut || busy}
+                  onClick={() => addProduct(product)}
+                  type="button"
+                >
+                  <div className="flex min-h-20 flex-col justify-between gap-1 p-2.5">
+                    <div className="line-clamp-2 text-sm leading-tight">{product.name}</div>
+                    <div className={isOut ? "text-lg text-slate-400" : "text-xl text-teal-700"}>{product.allowManualPrice ? "ใส่ราคา" : baht(product.salePrice)}</div>
+                    <div className={`rounded-md px-2 py-0.5 text-xs ${isOut ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-800"}`}>
+                      {isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าปุ่มขายด่วน</div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_500px]">
-      <div className="space-y-3">
-        <div>
-          <h1 className="text-2xl font-black">ขายสินค้า</h1>
-          <p className="mt-1 font-bold text-slate-600">สแกนบาร์โค้ดหรือพิมพ์ชื่อสินค้า แล้วกด Enter</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black">
-            <span className={`rounded-md px-2 py-1 ${online ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{online ? "ออนไลน์" : "ออฟไลน์"}</span>
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">รอซิงก์ {pendingSyncCount} รายการ</span>
-            {pendingSyncError && <span className="rounded-md bg-red-50 px-2 py-1 text-red-700">ซิงก์ล่าสุด: {pendingSyncError}</span>}
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">{cacheStatus}</span>
-            {lastSyncAt && <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-700">ซิงก์ล่าสุด: {new Date(lastSyncAt).toLocaleString("th-TH")}</span>}
-            <button className="rounded-md bg-teal-600 px-3 py-1 text-white disabled:opacity-50" disabled={!online || syncBusy} onClick={syncPendingSales} type="button">
+    <section className="space-y-3">
+      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-slate-950">ขายสินค้า</h1>
+            <p className="mt-1 font-bold text-slate-600">สแกนบาร์โค้ด พิมพ์ชื่อสินค้า หรือกดปุ่มขายด่วน</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm font-black">
+            <span className={`rounded-full px-3 py-1 ${online ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{online ? "ออนไลน์" : "ออฟไลน์"}</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">รอซิงก์ {pendingSyncCount} รายการ</span>
+            {pendingSyncError && <span className="rounded-full bg-red-50 px-3 py-1 text-red-700">ซิงก์ล่าสุด: {pendingSyncError}</span>}
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{cacheStatus}</span>
+            {lastSyncAt && <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">ซิงก์ล่าสุด: {new Date(lastSyncAt).toLocaleString("th-TH")}</span>}
+            <button className="rounded-full bg-teal-600 px-4 py-2 text-white disabled:opacity-50" disabled={!online || syncBusy} onClick={syncPendingSales} type="button">
               {syncBusy ? "กำลังซิงก์ Cloud" : "ซิงก์ข้อมูลตอนนี้"}
             </button>
           </div>
         </div>
-        <form onSubmit={handleSearch} className="card p-3">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={26} />
-              <input
-                ref={inputRef}
-                className="field min-h-14 pl-12 text-xl"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
-                disabled={busy}
-              />
-            </div>
-            <button className="btn btn-primary min-h-14 min-w-32 text-xl" disabled={busy} type="submit">
-              เพิ่ม
-            </button>
-          </div>
-          {renderProductPreview()}
-        </form>
-        <div className="xl:hidden">{renderPaymentPanel()}</div>
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-            <div className="text-xl font-black">ตะกร้าสินค้า</div>
-            <div className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">{cart.length} รายการ</div>
-          </div>
-          <div className="max-h-[36vh] min-h-28 overflow-y-auto xl:max-h-[42vh]">
-            {cart.length === 0 ? (
-              <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าในตะกร้า</div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {cart.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1 sm:grid-cols-[minmax(0,1fr)_90px_auto_auto]">
-                    <div className="min-w-0 leading-tight">
-                      <div className="truncate text-sm font-black sm:text-base">{item.name}</div>
-                      <div className="mt-0.5 truncate text-xs font-bold text-slate-500">{item.barcode} | คงเหลือ {item.stockQty}</div>
-                    </div>
-                    <div className="hidden text-right text-xs font-bold text-slate-700 sm:block">
-                      {baht(item.salePrice)} x {item.quantity}
-                    </div>
-                    <div className="text-right text-base font-black text-teal-700">{baht(item.salePrice * item.quantity)}</div>
-                    <div className="col-span-2 flex justify-end gap-1 sm:col-span-1">
-                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, -1)} type="button" title="ลดจำนวน">
-                          <Minus size={16} />
-                        </button>
-                        <input
-                          className="h-8 w-14 rounded-lg bg-slate-100 text-center text-sm font-black focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-400"
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          disabled={busy}
-                          value={qtyDraft[item.id] !== undefined ? qtyDraft[item.id] : String(item.quantity)}
-                          onChange={(e) => setQtyDraft((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                          onBlur={() => commitQty(item)}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
-                          title={`จำนวน (สูงสุด ${item.stockQty})`}
-                        />
-                        <button className="btn btn-light touch-icon-button" disabled={busy} onClick={() => updateQty(item.id, 1)} type="button" title="เพิ่มจำนวน">
-                          <Plus size={16} />
-                        </button>
-                        <button
-                          className="btn btn-danger touch-icon-button"
-                          disabled={busy}
-                          onClick={() => {
-                            setQtyDraft((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
-                            setCart((items) => items.filter((entry) => entry.id !== item.id));
-                          }}
-                          type="button"
-                          title="ลบสินค้า"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="card overflow-hidden">
-          <div className="border-b border-slate-200 px-3 py-2 text-xl font-black">ปุ่มขายด่วน</div>
-          {quickSaleCategories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto border-b border-slate-100 px-3 py-2">
-              <button className={`rounded-lg px-3 py-2 text-sm font-black ${quickSaleCategoryId === "all" ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-700"}`} onClick={() => setQuickSaleCategoryId("all")} disabled={busy} type="button">ทั้งหมด</button>
-              {quickSaleCategories.map((category) => (
-                <button key={category.id} className={`rounded-lg px-3 py-2 text-sm font-black ${quickSaleCategoryId === category.id ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-700"}`} onClick={() => setQuickSaleCategoryId(category.id)} disabled={busy} type="button">{category.name}</button>
-              ))}
-            </div>
-          )}
-          {filteredQuickSaleProducts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2.5 p-3 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-              {filteredQuickSaleProducts.map((product) => {
-                const isOut = product.stockQty <= 0;
-                return (
-                  <button
-                    key={product.id}
-                    className={`min-h-28 overflow-hidden rounded-lg border-2 text-left font-black transition ${
-                      isOut
-                        ? "border-slate-200 bg-slate-100 text-slate-400 opacity-60"
-                        : "border-teal-200 bg-white text-slate-950 hover:border-teal-500 hover:bg-teal-50"
-                    }`}
-                    disabled={isOut || busy}
-                    onClick={() => addProduct(product)}
-                    type="button"
-                  >
-                    <div className="flex min-h-28 flex-col justify-between gap-1.5 p-2.5">
-                      <div className="line-clamp-2 text-lg leading-tight">{product.name}</div>
-                      <div className="text-xl text-teal-700">{baht(product.salePrice)}</div>
-                      <div className={`rounded-md px-2 py-1 text-xs ${isOut ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-800"}`}>
-                        {isOut ? "หมด" : `คงเหลือ ${product.stockQty} ${product.unit}`}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="px-4 py-6 text-center font-bold text-slate-500">ยังไม่มีสินค้าปุ่มขายด่วน</div>
-          )}
-        </div>
-        {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-2 font-black text-amber-900">{message}</div>}
       </div>
-      <aside className="hidden xl:sticky xl:top-3 xl:block xl:self-start">
-        {renderPaymentPanel()}
-      </aside>
+
+      <div className="grid gap-3 lg:grid-cols-[220px_minmax(330px,1fr)_320px] xl:grid-cols-[280px_minmax(420px,1fr)_380px] 2xl:grid-cols-[340px_minmax(520px,1fr)_420px]">
+        <div className="order-4 lg:order-1 lg:sticky lg:top-3 lg:self-start">
+          {renderQuickSalePanel()}
+        </div>
+
+        <div className="order-1 space-y-3 lg:order-2">
+          <form onSubmit={handleSearch} className="card border-teal-100 p-3 shadow-md">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-600" size={26} />
+                <input
+                  ref={inputRef}
+                  className="field min-h-14 border-teal-200 pl-12 text-xl"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
+                  disabled={busy}
+                />
+              </div>
+              <button className="btn btn-primary min-h-14 min-w-32 text-xl shadow-sm" disabled={busy} type="submit">
+                เพิ่ม
+              </button>
+            </div>
+            {renderProductPreview()}
+          </form>
+
+          <div className="lg:hidden">{renderPaymentPanel()}</div>
+          {renderCartPanel()}
+          {message && <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-3 py-2 font-black text-amber-900">{message}</div>}
+        </div>
+
+        <aside className="order-2 hidden lg:order-3 lg:sticky lg:top-3 lg:block lg:self-start">
+          {renderPaymentPanel()}
+        </aside>
+      </div>
       {busy && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4">
           <div className="card w-full max-w-sm p-6 text-center shadow-2xl">
@@ -769,6 +829,32 @@ export default function PosPage() {
             <div className="mt-4 text-2xl font-black text-slate-950">กำลังบันทึกในเครื่อง...</div>
             <div className="mt-2 font-bold text-slate-600">กรุณารอสักครู่ ห้ามปิดหน้านี้</div>
           </div>
+        </div>
+      )}
+      {manualPriceProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <form onSubmit={submitManualPrice} className="card w-full max-w-sm p-5">
+            <div className="text-2xl font-black text-slate-950">ใส่ราคาสินค้า</div>
+            <div className="mt-2 font-bold text-slate-600">{manualPriceProduct.name}</div>
+            <label className="mt-4 block space-y-2">
+              <span className="font-black">ราคา</span>
+              <input
+                className="field text-3xl"
+                autoFocus
+                inputMode="decimal"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={manualPrice}
+                onChange={(event) => setManualPrice(event.target.value)}
+                placeholder="เช่น 5 หรือ 10"
+              />
+            </label>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button className="btn btn-light" onClick={() => { setManualPriceProduct(null); setManualPrice(""); inputRef.current?.focus(); }} type="button">ยกเลิก</button>
+              <button className="btn btn-primary" type="submit">เพิ่ม</button>
+            </div>
+          </form>
         </div>
       )}
       {successSale && (
@@ -804,4 +890,3 @@ export default function PosPage() {
     </section>
   );
 }
-

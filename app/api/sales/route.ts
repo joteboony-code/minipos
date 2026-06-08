@@ -1,10 +1,10 @@
-import { Prisma } from "@prisma/client";
+﻿import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { recordAuditLog } from "@/lib/audit";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-type CheckoutItem = { productId: string; quantity: number };
+type CheckoutItem = { productId: string; quantity: number; unitPrice?: Prisma.Decimal | null };
 type PaymentMethodInput = "CASH" | "TRANSFER" | "CREDIT";
 
 const receiptDateFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -33,38 +33,49 @@ function normalizeItems(rawItems: unknown): CheckoutItem[] {
     throw new Error("ไม่มีสินค้าในตะกร้า");
   }
 
-  const byProduct = new Map<string, number>();
+  const byProductAndPrice = new Map<string, CheckoutItem>();
   for (const raw of rawItems) {
-    const item = raw as Partial<CheckoutItem>;
+    const item = raw as Partial<{ productId: unknown; quantity: unknown; unitPrice: unknown }>;
     const productId = typeof item.productId === "string" ? item.productId.trim() : "";
     const quantity = Number(item.quantity);
+    let unitPrice: Prisma.Decimal | null = null;
+
+    if (item.unitPrice !== undefined && item.unitPrice !== null && item.unitPrice !== "") {
+      try {
+        unitPrice = new Prisma.Decimal(String(item.unitPrice)).toDecimalPlaces(2);
+      } catch {
+        throw new Error("ราคาสินค้าไม่ถูกต้อง");
+      }
+      if (unitPrice.isNaN() || unitPrice.lte(0)) throw new Error("ราคาสินค้าไม่ถูกต้อง");
+    }
 
     if (!productId || !Number.isInteger(quantity) || quantity <= 0) {
       throw new Error("จำนวนสินค้าไม่ถูกต้อง");
     }
 
-    byProduct.set(productId, (byProduct.get(productId) ?? 0) + quantity);
+    const key = `${productId}:${unitPrice ? unitPrice.toFixed(2) : ""}`;
+    const existing = byProductAndPrice.get(key);
+    byProductAndPrice.set(key, existing ? { ...existing, quantity: existing.quantity + quantity } : { productId, quantity, unitPrice });
   }
 
-  const items = [...byProduct.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  const items = [...byProductAndPrice.values()];
   if (items.length === 0) {
     throw new Error("ไม่มีสินค้าในตะกร้า");
   }
   return items;
 }
-
 function parseCashReceived(value: unknown) {
   if (value === null || value === undefined || value === "") {
-    throw new Error("กรุณาระบุเงินสดที่รับมา");
+    throw new Error("เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเน€เธเธดเธเธชเธ”เธ—เธตเนเธฃเธฑเธเธกเธฒ");
   }
   let cash: Prisma.Decimal;
   try {
     cash = new Prisma.Decimal(String(value));
   } catch {
-    throw new Error("จำนวนเงินสดไม่ถูกต้อง");
+    throw new Error("เธเธณเธเธงเธเน€เธเธดเธเธชเธ”เนเธกเนเธ–เธนเธเธ•เนเธญเธ");
   }
   if (cash.isNaN() || cash.isNegative()) {
-    throw new Error("จำนวนเงินสดไม่ถูกต้อง");
+    throw new Error("เธเธณเธเธงเธเน€เธเธดเธเธชเธ”เนเธกเนเธ–เธนเธเธ•เนเธญเธ");
   }
   return cash.toDecimalPlaces(2);
 }
@@ -88,7 +99,7 @@ async function createSale(body: unknown) {
   const creditNote = optionalText(checkout.creditNote);
 
   if (paymentMethod === "CREDIT" && !creditCustomerName) {
-    throw new Error("กรุณาใส่ชื่อลูกค้าเงินเชื่อ");
+    throw new Error("เธเธฃเธธเธ“เธฒเนเธชเนเธเธทเนเธญเธฅเธนเธเธเนเธฒเน€เธเธดเธเน€เธเธทเนเธญ");
   }
 
   const cashReceived = paymentMethod === "CASH" ? parseCashReceived(checkout.cashReceived) : null;
@@ -127,11 +138,12 @@ async function createSale(body: unknown) {
     }> = [];
     for (const item of items) {
       const product = products.find((entry) => entry.id === item.productId);
-      if (!product) throw new Error("ไม่พบสินค้า");
-      if (!product.isActive) throw new Error(`${product.name} ถูกปิดใช้งาน`);
-      if (product.stockQty < item.quantity) throw new Error(`${product.name} มีสต็อกไม่พอ`);
+      if (!product) throw new Error("เนเธกเนเธเธเธชเธดเธเธเนเธฒ");
+      if (!product.isActive) throw new Error(`${product.name} เธ–เธนเธเธเธดเธ”เนเธเนเธเธฒเธ`);
+      if (product.stockQty < item.quantity) throw new Error(`${product.name} เธกเธตเธชเธ•เนเธญเธเนเธกเนเธเธญ`);
 
-      const unitPrice = product.salePrice;
+      if (item.unitPrice && !product.allowManualPrice) throw new Error(`${product.name} ไม่อนุญาตให้ใส่ราคาเอง`);
+      const unitPrice = item.unitPrice ?? product.salePrice;
       const quantity = new Prisma.Decimal(item.quantity);
       const lineTotal = unitPrice.mul(quantity).toDecimalPlaces(2);
       const batches = await tx.productBatch.findMany({
@@ -156,7 +168,7 @@ async function createSale(body: unknown) {
       }
 
       if (remainingToAllocate > 0) {
-        throw new Error(`${product.name} ยังไม่มีล็อตสินค้าเพียงพอ กรุณาตั้งล็อตยอดยกมา`);
+        throw new Error(`${product.name} เธขเธฑเธเนเธกเนเธกเธตเธฅเนเธญเธ•เธชเธดเธเธเนเธฒเน€เธเธตเธขเธเธเธญ เธเธฃเธธเธ“เธฒเธ•เธฑเนเธเธฅเนเธญเธ•เธขเธญเธ”เธขเธเธกเธฒ`);
       }
 
       const lineCost = allocations.reduce((sum, allocation) => sum.add(allocation.totalCost), new Prisma.Decimal(0)).toDecimalPlaces(2);
@@ -180,7 +192,7 @@ async function createSale(body: unknown) {
     const changeAmount = paymentMethod === "CASH" && cashReceived ? cashReceived.sub(totalAmount) : paymentMethod === "CREDIT" ? new Prisma.Decimal(0) : null;
 
     if (cashReceived && cashReceived.lessThan(totalAmount)) {
-      throw new Error("เงินสดที่รับมาน้อยกว่ายอดรวม");
+      throw new Error("เน€เธเธดเธเธชเธ”เธ—เธตเนเธฃเธฑเธเธกเธฒเธเนเธญเธขเธเธงเนเธฒเธขเธญเธ”เธฃเธงเธก");
     }
 
     const receiptNo = await nextReceiptNo(tx);
@@ -227,7 +239,7 @@ async function createSale(body: unknown) {
           data: { remainingQty: { decrement: allocation.quantity } }
         });
         if (updatedBatch.count !== 1) {
-          throw new Error(`${line.product.name} ล็อตสินค้าเปลี่ยนแปลง กรุณาลองใหม่`);
+          throw new Error(`${line.product.name} เธฅเนเธญเธ•เธชเธดเธเธเนเธฒเน€เธเธฅเธตเนเธขเธเนเธเธฅเธ เธเธฃเธธเธ“เธฒเธฅเธญเธเนเธซเธกเน`);
         }
         await tx.saleItemBatch.create({
           data: {
@@ -252,7 +264,7 @@ async function createSale(body: unknown) {
       });
 
       if (updated.count !== 1 || afterQty < 0) {
-        throw new Error(`${line.product.name} มีสต็อกไม่พอ`);
+        throw new Error(`${line.product.name} เธกเธตเธชเธ•เนเธญเธเนเธกเนเธเธญ`);
       }
 
       await tx.stockMovement.create({
@@ -389,7 +401,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!sale) throw new Error("สร้างเลขที่ใบเสร็จไม่สำเร็จ");
+    if (!sale) throw new Error("เธชเธฃเนเธฒเธเน€เธฅเธเธ—เธตเนเนเธเน€เธชเธฃเนเธเนเธกเนเธชเธณเน€เธฃเนเธ");
 
     const context = saleLogContext(body);
     await recordAuditLog({
@@ -426,6 +438,7 @@ export async function POST(request: NextRequest) {
       errorName: error instanceof Error ? error.name : typeof error,
       errorMessage: error instanceof Error ? error.message : String(error)
     });
-    return NextResponse.json({ error: error instanceof Error ? error.message : "เกิดข้อผิดพลาดฐานข้อมูล" }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”เธเธฒเธเธเนเธญเธกเธนเธฅ" }, { status: 400 });
   }
 }
+

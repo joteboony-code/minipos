@@ -14,6 +14,7 @@ export type LocalProduct = {
   unit: string;
   isActive: boolean;
   isQuickSale?: boolean;
+  allowManualPrice?: boolean;
   categoryId?: string | null;
   category?: { id: string; name: string } | null;
   lowStockAlertQty?: number;
@@ -53,6 +54,8 @@ export type LocalSaleItem = {
   lineTotal: number;
   lineProfit: number;
 };
+
+type LocalCartLine = LocalProduct & { quantity: number; manualUnitPrice?: number | null };
 
 export type LocalStockMovement = {
   localId: string;
@@ -184,7 +187,7 @@ function localReceiptNo() {
 }
 
 export async function saveLocalSale(input: {
-  cart: Array<LocalProduct & { quantity: number }>;
+  cart: LocalCartLine[];
   paymentMethod: LocalPaymentMethod;
   cashReceived: number | null;
   changeAmount: number | null;
@@ -196,10 +199,12 @@ export async function saveLocalSale(input: {
   const now = new Date().toISOString();
   const localId = crypto.randomUUID();
   const receiptNo = localReceiptNo();
-  const cartByProduct = new Map<string, (LocalProduct & { quantity: number })>();
+  const cartByProduct = new Map<string, LocalCartLine>();
   for (const item of input.cart) {
-    const existing = cartByProduct.get(item.id);
-    cartByProduct.set(item.id, existing ? { ...existing, quantity: existing.quantity + item.quantity } : { ...item });
+    const priceKey = item.allowManualPrice && item.manualUnitPrice !== undefined && item.manualUnitPrice !== null ? item.manualUnitPrice.toFixed(2) : "";
+    const key = `${item.id}:${priceKey}`;
+    const existing = cartByProduct.get(key);
+    cartByProduct.set(key, existing ? { ...existing, quantity: existing.quantity + item.quantity } : { ...item });
   }
   const cartLines = Array.from(cartByProduct.values());
   let sale: LocalSale | null = null;
@@ -215,7 +220,11 @@ export async function saveLocalSale(input: {
       creditCustomerName: input.paymentMethod === "CREDIT" ? input.creditCustomerName : null,
       creditCustomerPhone: input.paymentMethod === "CREDIT" ? input.creditCustomerPhone : null,
       creditNote: input.paymentMethod === "CREDIT" ? input.creditNote : null,
-      items: cartLines.map((item) => ({ productId: item.id, quantity: item.quantity }))
+      items: cartLines.map((item) => ({
+        productId: item.id,
+        quantity: item.quantity,
+        unitPrice: item.allowManualPrice && item.manualUnitPrice !== undefined && item.manualUnitPrice !== null ? item.manualUnitPrice : undefined
+      }))
     },
     status: "LOCAL_ONLY",
     createdAt: now,
@@ -243,7 +252,7 @@ export async function saveLocalSale(input: {
     const writeSale = () => {
       items = cartLines.map((line) => {
         const product = storedProducts.get(line.id) ?? line;
-        const unitPrice = Number(product.salePrice);
+        const unitPrice = product.allowManualPrice && line.manualUnitPrice !== undefined && line.manualUnitPrice !== null ? line.manualUnitPrice : Number(product.salePrice);
         const costPrice = Number(product.costPrice ?? 0);
         const lineTotal = unitPrice * line.quantity;
         const lineProfit = lineTotal - costPrice * line.quantity;

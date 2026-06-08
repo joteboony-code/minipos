@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, BarChart3, Boxes, ClipboardList, Clock, CreditCard, DatabaseBackup, FileText, History, Layers, Package, Settings, ShoppingCart } from "lucide-react";
 import { getSession, roleLabel, type Role } from "@/lib/auth";
@@ -42,38 +42,39 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           children
         ) : (
           <div className="min-h-screen lg:flex">
-            <aside className="border-b border-slate-200 bg-white lg:min-h-screen lg:w-80 lg:border-b-0 lg:border-r">
-              <div className="px-6 py-6">
-                <div className="text-3xl font-black text-teal-700">MiniMart POS</div>
-                <div className="mt-1 text-lg font-bold text-slate-500">ระบบขายหน้าร้าน</div>
-                <div className="mt-4 rounded-lg bg-slate-100 px-4 py-3">
+            <aside className="group overflow-hidden border-b border-slate-200 bg-white transition-all duration-200 lg:min-h-screen lg:w-20 lg:border-b-0 lg:border-r lg:hover:w-72 lg:focus-within:w-72">
+              <div className="px-4 py-5 lg:px-3">
+                <div className="text-3xl font-black leading-tight text-teal-700 lg:text-center lg:text-2xl lg:group-hover:text-left lg:group-focus-within:text-left">MiniMart<span className="lg:hidden lg:group-hover:inline lg:group-focus-within:inline"> POS</span></div>
+                <div className="mt-1 whitespace-nowrap text-lg font-bold text-slate-500 lg:pointer-events-none lg:opacity-0 lg:transition-opacity lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">ระบบขายหน้าร้าน</div>
+                <div className="mt-4 rounded-lg bg-slate-100 px-4 py-3 lg:hidden lg:group-hover:block lg:group-focus-within:block">
                   <div className="text-sm font-bold text-slate-500">เข้าสู่ระบบในฐานะ</div>
                   <div className="text-xl font-black text-slate-900">{roleLabel(session.role)}</div>
                 </div>
               </div>
-              <nav className="flex gap-3 overflow-x-auto px-4 pb-4 lg:block lg:space-y-3 lg:overflow-visible">
+              <nav className="flex gap-3 overflow-x-auto px-4 pb-4 lg:block lg:space-y-2 lg:overflow-visible lg:px-3">
                 {visibleNav.map((item) => {
                   const Icon = item.icon;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex min-h-16 shrink-0 items-center gap-4 rounded-lg px-4 py-4 text-xl font-black text-slate-800 hover:bg-teal-50 hover:text-teal-800"
+                      className="flex min-h-14 shrink-0 items-center gap-4 rounded-lg px-4 py-3 text-xl font-black text-slate-800 hover:bg-teal-50 hover:text-teal-800 lg:justify-center lg:px-3 lg:group-hover:justify-start lg:group-focus-within:justify-start"
                     >
-                      <Icon size={30} strokeWidth={2.4} />
-                      {item.label}
+                      <Icon className="shrink-0" size={28} strokeWidth={2.4} />
+                      <span className="whitespace-nowrap lg:hidden lg:group-hover:inline lg:group-focus-within:inline">{item.label}</span>
                     </Link>
                   );
                 })}
               </nav>
-              <div className="px-4 pb-6">
+              <div className="px-4 pb-6 lg:hidden lg:group-hover:block lg:group-focus-within:block">
                 <LogoutButton />
               </div>
             </aside>
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">{children}</main>
+            <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-5 xl:p-6">{children}</main>
           </div>
         )}
       </body>
     </html>
   );
 }
+
